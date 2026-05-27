@@ -1,0 +1,23 @@
+[
+  {
+    "law": "Newton Second Law",
+    "equation": "F = m*a",
+    "domain": "mechanics",
+    "variables": ["F", "m", "a"],
+    "description": "Relates net force to mass and acceleration."
+  },
+  {
+    "law": "Universal Gravitation",
+    "equation": "F = G*m1*m2/r^2",
+    "domain": "mechanics",
+    "variables": ["F", "G", "m1", "m2", "r"],
+    "description": "Attractive force between point masses."
+  },
+  {
+    "law": "Kinetic Energy",
+    "equation": "E_k = 0.5*m*v^2",
+    "domain": "mechanics",
+    "variables": ["E_k", "m", "v"],
+    "description": "Translational kinetic energy for a particle."
+  }
+]

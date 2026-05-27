@@ -1,0 +1,16 @@
+[
+  {
+    "law": "Coulomb Law",
+    "equation": "F = k*q1*q2/r^2",
+    "domain": "electromagnetism",
+    "variables": ["F", "k", "q1", "q2", "r"],
+    "description": "Electrostatic force between two charges."
+  },
+  {
+    "law": "Lorentz Force",
+    "equation": "F = q*(E + v x B)",
+    "domain": "electromagnetism",
+    "variables": ["F", "q", "E", "v", "B"],
+    "description": "Force on a charged particle in electromagnetic fields."
+  }
+]

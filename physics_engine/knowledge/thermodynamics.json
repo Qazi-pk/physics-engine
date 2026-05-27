@@ -1,0 +1,16 @@
+[
+  {
+    "law": "Ideal Gas Law",
+    "equation": "P*V = n*R*T",
+    "domain": "thermodynamics",
+    "variables": ["P", "V", "n", "R", "T"],
+    "description": "Equation of state for ideal gases."
+  },
+  {
+    "law": "First Law of Thermodynamics",
+    "equation": "dU = dQ - dW",
+    "domain": "thermodynamics",
+    "variables": ["U", "Q", "W"],
+    "description": "Energy conservation for thermodynamic processes."
+  }
+]

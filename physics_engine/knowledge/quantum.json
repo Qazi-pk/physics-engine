@@ -1,0 +1,16 @@
+[
+  {
+    "law": "Schrodinger Equation",
+    "equation": "i*hbar*dpsi/dt = H*psi",
+    "domain": "quantum",
+    "variables": ["psi", "t", "H", "hbar"],
+    "description": "Time evolution of quantum state vectors."
+  },
+  {
+    "law": "Planck Relation",
+    "equation": "E = h*f",
+    "domain": "quantum",
+    "variables": ["E", "h", "f"],
+    "description": "Photon energy-frequency relation."
+  }
+]

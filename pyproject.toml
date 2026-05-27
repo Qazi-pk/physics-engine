@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "physics-engine"
+version = "0.1.0"
+description = "PIR (Physics Intermediate Representation) — classical symbolic regression engine"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }       # <-- set to your actual license; must match LICENSE file
+authors = [
+  { name = "Muhammad Hanif", email = "qmhanif70@gmail.com" },
+]
+
+# Classical engine deps ONLY. Torch is intentionally absent — vanilla PIR is
+# torch-free, and SRBench CI must not pull the JEPA/torch side. If the import
+# below fails because something does `import torch` at module load, that is a
+# packaging bug to fix in the engine, NOT a dep to add here.
+dependencies = [
+  "numpy>=1.21",
+  "scipy>=1.7",
+  "sympy>=1.9",
+  "scikit-learn>=1.0",
+  "pandas>=1.3",
+]
+
+[project.urls]
+Homepage = "https://github.com/Qazi-pk/physics-engine"
+
+# ----------------------------------------------------------------------------
+# Package discovery. This is the part you MUST get right, and the reason this
+# file can't be fully blind-written: it controls WHICH folders ship.
+#
+# Goal: ship the classical engine (the `physics_engine` package, which contains
+# sklearn_adapter.py) and DO NOT ship the JEPA/torch code. Per the handoff the
+# JEPA code lives in a bare top-level `discovery/` (not under physics_engine/),
+# so including only `physics_engine*` keeps JEPA out automatically.
+#
+# Verify with the check in the README "Packaging sanity" section before tagging.
+# ----------------------------------------------------------------------------
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["physics_engine*"]    # ships physics_engine and its subpackages only
+exclude = [
+  "discovery*",        # JEPA / torch world-model code — must NOT ship
+  "jepa_module*",      # throwaway noise-trained stub — must NOT ship
+  "tests*",
+  "results*",
+  "results_*",         # archived sweep outputs (results_tierA_blind/, etc.)
+  "feynman_data*",
+  "*.tests",
+]
