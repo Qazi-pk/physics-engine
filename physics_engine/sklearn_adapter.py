@@ -36,6 +36,7 @@ class PIRRegressor(BaseEstimator, RegressorMixin):
         lambda_penalty=0.01,
         random_state=42,
         max_train_rows=800,
+        max_time=None,
     ):
     
         self.enforce_dimensions = enforce_dimensions
@@ -53,6 +54,7 @@ class PIRRegressor(BaseEstimator, RegressorMixin):
         self.lambda_penalty = lambda_penalty
         self.random_state = random_state
         self.max_train_rows = max_train_rows
+        self.max_time = max_time
 
     def fit(self, X, y):
         if isinstance(X, pd.DataFrame):
