@@ -1,53 +1,130 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=65.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "physics-engine"
+name = "pir-engine"
 version = "0.1.0"
-description = "PIR (Physics Intermediate Representation) — classical symbolic regression engine"
+description = "Physics Intermediate Representation: Automated physics law discovery from data"
 readme = "README.md"
-requires-python = ">=3.8"
-license = { text = "MIT" }       # <-- set to your actual license; must match LICENSE file
+requires-python = ">=3.9"
+license = {text = "MIT"}
 authors = [
-  { name = "Muhammad Hanif", email = "qmhanif70@gmail.com" },
+    {name = "Physics Engine Contributors", email = "qazi-pk@physics-ir.dev"}
+]
+keywords = [
+    "physics",
+    "symbolic-discovery",
+    "equation-learning",
+    "robotics",
+    "aerospace",
+    "system-identification",
+    "parameter-estimation"
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
-# Classical engine deps ONLY. Torch is intentionally absent — vanilla PIR is
-# torch-free, and SRBench CI must not pull the JEPA/torch side. If the import
-# below fails because something does `import torch` at module load, that is a
-# packaging bug to fix in the engine, NOT a dep to add here.
+# Core dependencies - kept minimal for broad compatibility
 dependencies = [
-  "numpy>=1.21",
-  "scipy>=1.7",
-  "sympy>=1.9",
-  "scikit-learn>=1.0",
-  "pandas>=1.3",
+    "numpy>=1.23",
+    "scipy>=1.10",
+    "pandas>=2.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# Symbolic discovery and equation manipulation
+symbolic = [
+    "sympy>=1.12",
+]
+
+# Machine learning-based discovery
+ml = [
+    "scikit-learn>=1.3",
+]
+
+# Robotics simulation and data generation
+robotics = [
+    "pybullet>=3.2",
+]
+
+# Experimental high-performance features
+experimental = [
+    "jax>=0.4",
+    "jaxlib>=0.4",
+]
+
+# Development tools
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "black>=23.0",
+    "isort>=5.0",
+    "mypy>=1.0",
+    "ruff>=0.1",
+]
+
+# All features combined
+all = [
+    "pir-engine[symbolic,ml,robotics,experimental]",
 ]
 
 [project.urls]
-Homepage = "https://github.com/Qazi-pk/physics-engine"
+Homepage = "https://github.com/Qazi-pk/Physics_Intermediate_Representation"
+Documentation = "https://github.com/Qazi-pk/Physics_Intermediate_Representation"
+Repository = "https://github.com/Qazi-pk/Physics_Intermediate_Representation"
+Issues = "https://github.com/Qazi-pk/Physics_Intermediate_Representation/issues"
 
-# ----------------------------------------------------------------------------
-# Package discovery. This is the part you MUST get right, and the reason this
-# file can't be fully blind-written: it controls WHICH folders ship.
-#
-# Goal: ship the classical engine (the `physics_engine` package, which contains
-# sklearn_adapter.py) and DO NOT ship the JEPA/torch code. Per the handoff the
-# JEPA code lives in a bare top-level `discovery/` (not under physics_engine/),
-# so including only `physics_engine*` keeps JEPA out automatically.
-#
-# Verify with the check in the README "Packaging sanity" section before tagging.
-# ----------------------------------------------------------------------------
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["physics_engine*"]    # ships physics_engine and its subpackages only
-exclude = [
-  "discovery*",        # JEPA / torch world-model code — must NOT ship
-  "jepa_module*",      # throwaway noise-trained stub — must NOT ship
-  "tests*",
-  "results*",
-  "results_*",         # archived sweep outputs (results_tierA_blind/, etc.)
-  "feynman_data*",
-  "*.tests",
+[project.scripts]
+pir = "physics_engine.cli:main"
+pir-discover = "physics_engine.cli:discover_command"
+pir-simulate = "physics_engine.cli:simulate_command"
+
+[tool.setuptools]
+packages = ["physics_engine"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+physics_engine = ["py.typed", "data/*.csv"]
+
+[tool.black]
+line-length = 100
+target-version = ["py39", "py310", "py311", "py312"]
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["physics_engine"]
+omit = ["*/tests/*", "*/test_*.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
 ]
