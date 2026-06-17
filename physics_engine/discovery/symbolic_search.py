@@ -318,6 +318,83 @@ def _fit_coefficients(
     return np.asarray(coeffs, dtype=float), loss_value
 
 
+
+# ═══════════════════════════════════════════════════════════════════════════
+# F3: Log-linearization gate for power-law monomial detection
+# Injected by patch_f3_v2.py — safe to remove by reverting from .bak_f3v2
+# ═══════════════════════════════════════════════════════════════════════════
+_F3_LOG_LINEAR_THRESHOLD = 0.99
+_F3_LOG_LINEAR_ROUND_TO = 0.5
+
+def _log_linear_gate(df, target_var, threshold=None):
+    """
+    Check if target looks like a power-law monomial: y = C * x1^a1 * x2^a2 * ...
+    by fitting log(y) = log(C) + sum(ai * log(xi)) via OLS.
+
+    Returns sympy expression if R² >= threshold, else None (fall through).
+    """
+    import numpy as np
+    import sympy as sp
+    from numpy.linalg import lstsq
+
+    if threshold is None:
+        threshold = _F3_LOG_LINEAR_THRESHOLD
+
+    try:
+        variables = [c for c in df.columns if c != target_var]
+        if len(variables) < 1:
+            return None
+
+        y = df[target_var].to_numpy(dtype=float)
+        X = df[variables].to_numpy(dtype=float)
+
+        # Need all positive for log transform
+        valid = (y > 0) & np.all(X > 0, axis=1) & np.isfinite(y) & np.all(np.isfinite(X), axis=1)
+        if valid.sum() < max(20, 2 * len(variables)):
+            return None
+
+        yv = y[valid]
+        Xv = X[valid]
+
+        log_y = np.log(yv)
+        log_X = np.log(Xv)
+
+        A = np.column_stack([np.ones(len(yv)), log_X])
+        coeffs, _, _, _ = lstsq(A, log_y, rcond=None)
+
+        y_pred = A @ coeffs
+        ss_res = np.sum((log_y - y_pred) ** 2)
+        ss_tot = np.sum((log_y - np.mean(log_y)) ** 2)
+        r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else 0.0
+
+        if r2 < threshold:
+            return None
+
+        # Recover constant and exponents, round to nearest half-integer
+        log_C = coeffs[0]
+        exponents = coeffs[1:]
+        step = _F3_LOG_LINEAR_ROUND_TO
+
+        C_val = float(np.exp(log_C))
+        expr = sp.Float(C_val, 4)
+
+        for vname, exp_raw in zip(variables, exponents):
+            exp_r = round(exp_raw / step) * step
+            if abs(exp_r) < 1e-6:
+                continue
+            sym = sp.Symbol(vname)
+            if exp_r == 1.0:
+                expr = expr * sym
+            elif exp_r == -1.0:
+                expr = expr / sym
+            else:
+                expr = expr * sym ** sp.Rational(int(exp_r * 2), 2)
+
+        return sp.simplify(expr)
+
+    except Exception:
+        return None
+
 def discover_law(
     csv_path,
     target_var,
@@ -372,6 +449,14 @@ def discover_law(
     """
 
     df = pd.read_csv(csv_path)
+
+    # F3 gate: if target is a pure power-law monomial, return it directly
+    _f3_expr = _log_linear_gate(df, target_var)
+    if _f3_expr is not None:
+        if return_metadata:
+            return _f3_expr, {"method": "f3_log_linear"}
+        return _f3_expr
+
 
     if add_latent_features is None:
         add_latent_features = add_physics_features
