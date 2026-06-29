@@ -92,8 +92,11 @@ pir = "physics_engine.cli:main"
 pir-discover = "physics_engine.cli:discover_command"
 pir-simulate = "physics_engine.cli:simulate_command"
 
+[tool.setuptools.packages.find]
+include = ["physics_engine*"]
+exclude = ["tests*", "experiments*", "notebooks*", "results*"]
+
 [tool.setuptools]
-packages = ["physics_engine"]
 include-package-data = true
 
 [tool.setuptools.package-data]
