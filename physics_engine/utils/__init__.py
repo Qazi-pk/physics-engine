@@ -5,14 +5,12 @@ from .derivatives import (
 	prepare_orbit_discovery_dataset,
 	second_derivative,
 )
-from .generate_datasets import generate_all_benchmarks
 from .latent_features import generate_latent_features
 from .latent_variables import generate_hidden_variables, generate_latent_variables
 from .physics_features import detect_invariants, generate_physics_features, generate_trigonometric_features
 
 __all__ = [
 	"load_csv",
-	"generate_all_benchmarks",
 	"first_derivative",
 	"second_derivative",
 	"compute_second_derivative",
