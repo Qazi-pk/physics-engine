@@ -17,8 +17,6 @@ from .orbit_trajectory import generate_orbit_trajectory_dataset
 from .robotics import generate_planar_robot_jacobian_dataset, generate_planar_robot_kinematics_dataset
 from .robotics_trajectory import generate_robot_trajectory_dataset
 from .franka_mass import generate_franka_mass_dataset
-from .oog_damped_oscillator import generate_oog_damped_oscillator_dataset
-from .oog_relativistic_correction import generate_oog_relativistic_correction_dataset
 from .pir_bench import (
     build_pir_bench_manifest,
     write_pir_bench_layout,
@@ -44,8 +42,6 @@ __all__ = [
     "generate_planar_robot_jacobian_dataset",
     "generate_robot_trajectory_dataset",
     "generate_franka_mass_dataset",
-    "generate_oog_damped_oscillator_dataset",
-    "generate_oog_relativistic_correction_dataset",
     "build_pir_bench_manifest",
     "write_pir_bench_layout",
     "write_pir_bench_manifest",
