@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PIR — Physics Intermediate Representation</title>
+<meta name="description" content="PIR recovers closed-form physical laws directly from noisy data using classical log-linearization and sparse regression. 12/44 exact recovery on the Feynman Tier A benchmark, zero seed wobble." />
+<meta property="og:title" content="PIR — Physics Intermediate Representation" />
+<meta property="og:description" content="The equation was already in your data. PIR reads it out." />
+<meta property="og:type" content="website" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink-950:#14171b;
+    --ink-900:#1a1e23;
+    --paper-100:#edeae0;
+    --chalk:#e7e4da;
+    --chalk-dim:#9aa1a6;
+    --amber:#c98a3b;
+    --teal:#4fa8a0;
+    --rule:rgba(231,228,218,0.10);
+    --rule-strong:rgba(231,228,218,0.18);
+    --max:880px;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:
+      linear-gradient(var(--rule) 1px, transparent 1px) 0 0/100% 32px,
+      var(--ink-950);
+    color:var(--chalk);
+    font-family:"IBM Plex Sans", sans-serif;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:var(--max); margin:0 auto; padding:0 24px;}
+  a{color:var(--teal); text-decoration:none; border-bottom:1px solid rgba(79,168,160,0.35);}
+  a:hover{border-bottom-color:var(--teal);}
+  .eyebrow{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--teal);
+    margin:0 0 14px;
+  }
+  h1,h2,h3{font-family:"Newsreader", serif; font-weight:500; margin:0;}
+  section{padding:72px 0; border-bottom:1px solid var(--rule);}
+  section:last-of-type{border-bottom:none;}
+
+  /* ---------- HERO ---------- */
+  .hero{padding-top:88px;}
+  .hero h1{
+    font-size:clamp(34px, 5.4vw, 54px);
+    line-height:1.12;
+    max-width:15ch;
+    font-style:italic;
+    font-weight:400;
+  }
+  .hero p.sub{
+    font-size:17px;
+    color:var(--chalk-dim);
+    max-width:52ch;
+    margin-top:20px;
+  }
+  .hero-cta{display:flex; gap:16px; flex-wrap:wrap; margin-top:32px;}
+  .btn{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:13px;
+    padding:11px 18px;
+    border:1px solid var(--rule-strong);
+    border-radius:2px;
+    color:var(--chalk);
+    border-bottom-width:1px;
+  }
+  .btn.primary{background:var(--amber); border-color:var(--amber); color:#1a1206;}
+  .btn.primary:hover{background:#dc9a49;}
+  .btn:hover{border-color:var(--chalk-dim);}
+
+  /* signature canvas panel */
+  .demo-panel{
+    margin-top:56px;
+    border:1px solid var(--rule-strong);
+    background:rgba(237,234,224,0.03);
+    padding:20px;
+    border-radius:3px;
+  }
+  .demo-panel .cap{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12px;
+    color:var(--chalk-dim);
+    display:flex;
+    justify-content:space-between;
+    margin-bottom:10px;
+  }
+  canvas{width:100%; height:auto; display:block; background:transparent;}
+  .eqline{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:15px;
+    color:var(--amber);
+    margin-top:14px;
+    min-height:1.4em;
+  }
+
+  /* ---------- RESULTS ---------- */
+  .grid-results{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(190px, 1fr));
+    gap:1px;
+    background:var(--rule);
+    border:1px solid var(--rule);
+    margin-top:28px;
+  }
+  .stat{background:var(--ink-950); padding:24px 20px;}
+  .stat .num{font-family:"Newsreader", serif; font-size:36px; color:var(--amber);}
+  .stat .lbl{font-size:13px; color:var(--chalk-dim); margin-top:6px;}
+  .note{font-size:14px; color:var(--chalk-dim); margin-top:24px; max-width:60ch;}
+
+  /* ---------- METHOD ---------- */
+  .method-steps{margin-top:32px; border-left:1px solid var(--rule-strong);}
+  .step{padding:0 0 28px 24px; position:relative;}
+  .step:last-child{padding-bottom:0;}
+  .step::before{
+    content:"";
+    position:absolute; left:-5px; top:6px;
+    width:9px; height:9px; border-radius:50%;
+    background:var(--ink-950); border:1px solid var(--teal);
+  }
+  .step h3{font-size:18px; color:var(--chalk); font-style:italic; font-weight:500;}
+  .step p{color:var(--chalk-dim); font-size:15px; margin-top:6px; max-width:56ch;}
+
+  /* ---------- PAPERS ---------- */
+  .paper-item{
+    display:flex; justify-content:space-between; gap:20px;
+    padding:16px 0; border-top:1px solid var(--rule);
+    font-size:15px;
+  }
+  .paper-item:last-child{border-bottom:1px solid var(--rule);}
+  .paper-item .doi{font-family:"IBM Plex Mono", monospace; font-size:13px; white-space:nowrap;}
+
+  /* ---------- STATUS ---------- */
+  .status-row{display:flex; align-items:baseline; gap:10px; padding:10px 0; border-top:1px solid var(--rule); font-size:15px;}
+  .status-row:last-child{border-bottom:1px solid var(--rule);}
+  .dot{width:8px;height:8px;border-radius:50%; flex:none;}
+  .dot.green{background:var(--teal);}
+  .dot.amber{background:var(--amber);}
+
+  footer{padding:48px 0 80px; font-size:14px; color:var(--chalk-dim);}
+  footer .links{display:flex; gap:18px; flex-wrap:wrap; margin-top:10px;}
+
+  @media (prefers-reduced-motion: reduce){ * { scroll-behavior:auto !important; } }
+</style>
+</head>
+<body>
+
+<div class="wrap hero">
+  <p class="eyebrow">PIR — Physics Intermediate Representation</p>
+  <h1>The equation was already in the data. PIR reads it out.</h1>
+  <p class="sub">A classical engine that recovers closed-form physical laws from noisy numerical data — log-linearization, dimensional consistency scoring, and sparse regression. No black box, no learned weights standing in for an answer: just the equation, in symbols you can check by hand.</p>
+  <div class="hero-cta">
+    <a class="btn primary" href="https://huggingface.co/spaces/Qazihanif/pir-demo">Try the live demo →</a>
+    <a class="btn" href="https://github.com/Qazi-pk/physics-engine">View source (GitHub)</a>
+    <a class="btn" href="#papers">Read the papers</a>
+  </div>
+
+  <div class="demo-panel">
+    <div class="cap"><span>noisy samples → log–log space → recovered law</span><span id="capState">rebuilding…</span></div>
+    <canvas id="fitCanvas" width="800" height="320"></canvas>
+    <div class="eqline" id="eqline">&nbsp;</div>
+  </div>
+</div>
+
+<div class="wrap">
+<section id="results">
+  <p class="eyebrow">Verified results</p>
+  <h2 style="font-size:28px; font-style:italic; max-width:40ch;">Every number here traces to a committed, reproducible run.</h2>
+  <div class="grid-results">
+    <div class="stat"><div class="num">12/44</div><div class="lbl">EXACT symbolic recovery — Feynman Tier A, blind, v3.4</div></div>
+    <div class="stat"><div class="num">12/44</div><div class="lbl">FORM_NUMERIC — correct functional form, constant off by decimal</div></div>
+    <div class="stat"><div class="num">0</div><div class="lbl">Seed wobble across independent verification runs</div></div>
+    <div class="stat"><div class="num">~6%</div><div class="lbl">Relative sensor noise before FORM_NUMERIC recovery degrades</div></div>
+    <div class="stat"><div class="num">100%</div><div class="lbl">Discovery rate — Franka Panda robot dynamics case study</div></div>
+  </div>
+  <p class="note">Scored under a strict symbolic-ratio classifier (exact structural match required for the EXACT count), not a loosened numeric-tolerance criterion. Source of truth for every figure is a single tracked <code>results/verified.json</code> file with two independent bit-identical runs behind each entry.</p>
+
+  <p class="eyebrow" style="margin-top:48px;">PIR-Bench — 22 canonical physics tasks (separate benchmark)</p>
+  <div class="grid-results">
+    <div class="stat"><div class="num">11/22</div><div class="lbl">STRICT — exact symbolic match or proportional constant, zero tolerance</div></div>
+    <div class="stat"><div class="num">18/22</div><div class="lbl">TOLERANT — exact functional form, ≤1% per-term coefficient tolerance</div></div>
+  </div>
+  <p class="note">Re-scored from scratch under symbolic-equivalence criteria, replacing an earlier lenient token-presence check. Newton, Kepler, gravity, inverse-square, orbit components, and both harmonic-oscillator derivative forms pass STRICT; the Jacobian and forward-kinematics tasks pass under TOLERANT once redundant-length identifiability is accounted for; pendulum and the plain Lagrangian/Hamiltonian forms genuinely fail both — a linear or near-linear approximation is not the same law as the transcendental original. Full breakdown in <code>verified.json</code>.</p>
+</section>
+
+<section id="method">
+  <p class="eyebrow">How it works</p>
+  <h2 style="font-size:28px; font-style:italic; max-width:40ch;">Four classical stages, no learned priors.</h2>
+  <div class="method-steps">
+    <div class="step">
+      <h3>Log-linearize</h3>
+      <p>Any monomial law y = C·x₁^a₁·x₂^a₂··· becomes exactly linear once you take logs. Ordinary least squares recovers the exponents directly — no search required for this large class of physical laws.</p>
+    </div>
+    <div class="step">
+      <h3>Score against dimensions</h3>
+      <p>Candidate exponents are checked against known physical units with a soft dimensional penalty, so structurally implausible fits are down-weighted rather than accepted on curve-fit quality alone.</p>
+    </div>
+    <div class="step">
+      <h3>RANSAC + sparse regression</h3>
+      <p>Robust fitting handles outliers and sensor noise; sparse regression keeps the recovered expression as short as the data actually supports.</p>
+    </div>
+    <div class="step">
+      <h3>Residual refinement</h3>
+      <p>Remaining structure in the residual is re-tested against the same pipeline, letting compound laws be recovered in stages rather than requiring one search to find everything at once.</p>
+    </div>
+  </div>
+</section>
+
+<section id="status">
+  <p class="eyebrow">Current status</p>
+  <div class="status-row"><span class="dot amber"></span><span><strong>SRBench PR #210</strong> — submitted to cavalab/srbench, CI green, awaiting maintainer review.</span></div>
+  <div class="status-row"><span class="dot green"></span><span><strong>PR #217</strong> (target_noise fix) — merged.</span></div>
+  <div class="status-row"><span class="dot green"></span><span><strong>Franka Panda dynamics</strong> — full recovery, published as v2, supersedes v1.</span></div>
+  <div class="status-row"><span class="dot amber"></span><span><strong>v3.5</strong> — sum-of-products decomposition in progress; honest classical ceiling on Feynman Tier A estimated at 18–22/44.</span></div>
+</section>
+
+<section id="papers">
+  <p class="eyebrow">Publications</p>
+  <div class="paper-item"><span>PIR Architecture v3.1 <span style="color:var(--chalk-dim); font-size:12px;">(task-level headline superseded — see PIR-Bench above)</span></span><span class="doi"><a href="https://doi.org/10.5281/zenodo.19723561">10.5281/zenodo.19723561</a></span></div>
+  <div class="paper-item"><span>PIR-Bench v3.2 <span style="color:var(--chalk-dim); font-size:12px;">(task-level headline superseded — see PIR-Bench above)</span></span><span class="doi"><a href="https://doi.org/10.5281/zenodo.20062682">10.5281/zenodo.20062682</a></span></div>
+  <div class="paper-item"><span>PIR-Bench v3.3</span><span class="doi"><a href="https://doi.org/10.5281/zenodo.20195566">10.5281/zenodo.20195566</a></span></div>
+  <div class="paper-item"><span>PhysicsGPT v3</span><span class="doi"><a href="https://doi.org/10.5281/zenodo.19428391">10.5281/zenodo.19428391</a></span></div>
+  <div class="paper-item"><span>Franka Panda mass-matrix grammar (v2)</span><span class="doi"><a href="https://doi.org/10.5281/zenodo.22157422">10.5281/zenodo.22157422</a></span></div>
+  <div class="paper-item"><span>PIR v3.4.1 (current)</span><span class="doi"><a href="https://doi.org/10.5281/zenodo.21351039">10.5281/zenodo.21351039</a></span></div>
+</section>
+
+<section id="about">
+  <p class="eyebrow">About</p>
+  <h2 style="font-size:26px; font-style:italic; max-width:44ch;">Built by an independent physicist, not a research lab.</h2>
+  <p style="color:var(--chalk-dim); max-width:60ch; margin-top:14px;">Qazi M. Hanif is an independent physicist based in Khyber Pakhtunkhwa, Pakistan, building PIR as a solo research project. Open to institutional collaboration, benchmark review, and consulting work in physics-informed model identification and system identification for robotics.</p>
+</section>
+</div>
+
+<footer>
+  <div class="wrap">
+    <div>Qazi M. Hanif · qmhanif70@gmail.com · ORCID <a href="https://orcid.org/0009-0003-2818-5449">0009-0003-2818-5449</a></div>
+    <div class="links">
+      <a href="https://github.com/Qazi-pk">GitHub</a>
+      <a href="https://huggingface.co/spaces/Qazihanif/pir-demo">Demo</a>
+      <a href="https://github.com/cavalab/srbench/pull/210">SRBench PR</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  const canvas = document.getElementById('fitCanvas');
+  const ctx = canvas.getContext('2d');
+  const eqline = document.getElementById('eqline');
+  const capState = document.getElementById('capState');
+  const W = canvas.width, H = canvas.height;
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // synthetic data: y = 3.0 * x^1.5, with multiplicative noise
+  const N = 22;
+  const trueC = 3.0, trueA = 1.5;
+  const pts = [];
+  for(let i=0;i<N;i++){
+    const x = 1 + i*(9/N) + Math.random()*0.3;
+    const noise = 1 + (Math.random()-0.5)*0.18;
+    const y = trueC*Math.pow(x, trueA)*noise;
+    pts.push({x, y});
+  }
+
+  function toLog(p){ return {lx: Math.log(p.x), ly: Math.log(p.y)}; }
+  const logPts = pts.map(toLog);
+  const lxMin = Math.min(...logPts.map(p=>p.lx)), lxMax = Math.max(...logPts.map(p=>p.lx));
+  const lyMin = Math.min(...logPts.map(p=>p.ly)), lyMax = Math.max(...logPts.map(p=>p.ly));
+
+  // OLS fit in log space
+  const n = logPts.length;
+  const sx = logPts.reduce((s,p)=>s+p.lx,0);
+  const sy = logPts.reduce((s,p)=>s+p.ly,0);
+  const sxy = logPts.reduce((s,p)=>s+p.lx*p.ly,0);
+  const sxx = logPts.reduce((s,p)=>s+p.lx*p.lx,0);
+  const slope = (n*sxy - sx*sy)/(n*sxx - sx*sx);
+  const intercept = (sy - slope*sx)/n;
+  const fitC = Math.exp(intercept);
+
+  const pad = 40;
+  function mapX(lx){ return pad + (lx-lxMin)/(lxMax-lxMin) * (W-2*pad); }
+  function mapY(ly){ return H-pad - (ly-lyMin)/(lyMax-lyMin) * (H-2*pad); }
+
+  function drawGrid(){
+    ctx.strokeStyle = 'rgba(231,228,218,0.08)';
+    ctx.lineWidth = 1;
+    for(let i=0;i<=6;i++){
+      const x = pad + i*(W-2*pad)/6;
+      ctx.beginPath(); ctx.moveTo(x,pad); ctx.lineTo(x,H-pad); ctx.stroke();
+      const y = pad + i*(H-2*pad)/6;
+      ctx.beginPath(); ctx.moveTo(pad,y); ctx.lineTo(W-pad,y); ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(231,228,218,0.25)';
+    ctx.strokeRect(pad,pad,W-2*pad,H-2*pad);
+  }
+
+  function drawPoints(alpha){
+    ctx.fillStyle = `rgba(79,168,160,${alpha})`;
+    logPts.forEach(p=>{
+      ctx.beginPath();
+      ctx.arc(mapX(p.lx), mapY(p.ly), 4, 0, Math.PI*2);
+      ctx.fill();
+    });
+  }
+
+  function drawLine(progress){
+    const x0 = lxMin, x1 = lxMin + (lxMax-lxMin)*progress;
+    ctx.strokeStyle = '#c98a3b';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(mapX(x0), mapY(slope*x0+intercept));
+    ctx.lineTo(mapX(x1), mapY(slope*x1+intercept));
+    ctx.stroke();
+  }
+
+  function render(){
+    ctx.clearRect(0,0,W,H);
+    drawGrid();
+    drawPoints(0.85);
+  }
+
+  if(reduceMotion){
+    render();
+    drawLine(1);
+    eqline.textContent = `recovered: y ≈ ${fitC.toFixed(2)} · x^${slope.toFixed(2)}   (true: y = 3.00 · x^1.50)`;
+    capState.textContent = 'fit converged';
+  } else {
+    let frame = 0;
+    const total = 90;
+    function animate(){
+      frame++;
+      const p = Math.min(frame/total, 1);
+      render();
+      drawLine(p);
+      if(p >= 1){
+        eqline.textContent = `recovered: y ≈ ${fitC.toFixed(2)} · x^${slope.toFixed(2)}   (true: y = 3.00 · x^1.50)`;
+        capState.textContent = 'fit converged';
+        return;
+      }
+      capState.textContent = 'fitting…';
+      requestAnimationFrame(animate);
+    }
+    requestAnimationFrame(animate);
+  }
+})();
+</script>
+
+</body>
+</html>
