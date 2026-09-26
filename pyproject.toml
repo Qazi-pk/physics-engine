@@ -100,7 +100,7 @@ exclude = ["tests*", "experiments*", "notebooks*", "results*"]
 include-package-data = true
 
 [tool.setuptools.package-data]
-physics_engine = ["py.typed", "data/*.csv"]
+physics_engine = ["py.typed", "data/*.csv", "**/*.so"]
 
 [tool.black]
 line-length = 100
