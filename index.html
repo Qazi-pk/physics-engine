@@ -182,7 +182,7 @@
     <div class="stat"><div class="num">12/44</div><div class="lbl">FORM_NUMERIC — correct functional form, constant off by decimal</div></div>
     <div class="stat"><div class="num">0</div><div class="lbl">Seed wobble across independent verification runs</div></div>
     <div class="stat"><div class="num">~6%</div><div class="lbl">Relative sensor noise before FORM_NUMERIC recovery degrades</div></div>
-    <div class="stat"><div class="num">100%</div><div class="lbl">Discovery rate — Franka Panda robot dynamics case study</div></div>
+    <div class="stat"><div class="num">0.943</div><div class="lbl">R² on Franka Panda mass-matrix M11 (up from 0.852), 5-seed verified</div></div>
   </div>
   <p class="note">Scored under a strict symbolic-ratio classifier (exact structural match required for the EXACT count), not a loosened numeric-tolerance criterion. Source of truth for every figure is a single tracked <code>results/verified.json</code> file with two independent bit-identical runs behind each entry.</p>
 
@@ -219,10 +219,10 @@
 
 <section id="status">
   <p class="eyebrow">Current status</p>
-  <div class="status-row"><span class="dot amber"></span><span><strong>SRBench PR #210</strong> — submitted to cavalab/srbench, CI green, awaiting maintainer review.</span></div>
+  <div class="status-row"><span class="dot green"></span><span><strong>SRBench PR #210</strong> — merged into SRBench's standard benchmark (cavalab/srbench).</span></div>
   <div class="status-row"><span class="dot green"></span><span><strong>PR #217</strong> (target_noise fix) — merged.</span></div>
-  <div class="status-row"><span class="dot green"></span><span><strong>Franka Panda dynamics</strong> — full recovery, published as v2, supersedes v1.</span></div>
-  <div class="status-row"><span class="dot amber"></span><span><strong>v3.5</strong> — sum-of-products decomposition in progress; honest classical ceiling on Feynman Tier A estimated at 18–22/44.</span></div>
+  <div class="status-row"><span class="dot green"></span><span><strong>Franka Panda dynamics</strong> — case study published as v2, supersedes v1.</span></div>
+  <div class="status-row"><span class="dot amber"></span><span><strong>v3.5</strong> — public tag released; PR #225 (SRBench pin bump to v3.5) awaiting merge.</span></div>
 </section>
 
 <section id="papers">
@@ -237,8 +237,8 @@
 
 <section id="about">
   <p class="eyebrow">About</p>
-  <h2 style="font-size:26px; font-style:italic; max-width:44ch;">Built by an independent physicist, not a research lab.</h2>
-  <p style="color:var(--chalk-dim); max-width:60ch; margin-top:14px;">Qazi M. Hanif is an independent physicist based in Khyber Pakhtunkhwa, Pakistan, building PIR as a solo research project. Open to institutional collaboration, benchmark review, and consulting work in physics-informed model identification and system identification for robotics.</p>
+  <h2 style="font-size:26px; font-style:italic; max-width:44ch;">Built by an independent researcher, not a research lab.</h2>
+  <p style="color:var(--chalk-dim); max-width:60ch; margin-top:14px;">Qazi M. Hanif is an independent researcher based in Khyber Pakhtunkhwa, Pakistan, building PIR as a solo research project. Open to institutional collaboration, benchmark review, and consulting work in physics-informed model identification and system identification for robotics.</p>
 </section>
 </div>
 
@@ -246,6 +246,7 @@
   <div class="wrap">
     <div>Qazi M. Hanif · qmhanif70@gmail.com · ORCID <a href="https://orcid.org/0009-0003-2818-5449">0009-0003-2818-5449</a></div>
     <div class="links">
+      <a href="https://qazi-pk.github.io/">All links</a>
       <a href="https://github.com/Qazi-pk">GitHub</a>
       <a href="https://huggingface.co/spaces/Qazihanif/pir-demo">Demo</a>
       <a href="https://github.com/cavalab/srbench/pull/210">SRBench PR</a>
