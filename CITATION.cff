@@ -13,6 +13,7 @@ authors:
     email: "qmhanif70@gmail.com"
     orcid: "https://orcid.org/0009-0003-2818-5449"
 version: "3.6.0"
+date-released: "2026-10-19"
 license: MIT
 repository-code: "https://github.com/Qazi-pk/physics-engine"
 keywords:

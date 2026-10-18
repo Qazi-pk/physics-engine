@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.6.0 — unreleased
+## 3.6.0 — 2026-10-19
 
 - `PIRRegressor(gates=...)`: optional fallback gates after the main engine —
   exact rational (`P/Q`), exact exponential, and noise-tolerant power-law
