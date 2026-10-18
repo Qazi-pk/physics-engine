@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pir-engine"
-version = "3.5.0"
+version = "3.6.0"
 description = "Physics Intermediate Representation: Automated physics law discovery from data"
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
 authors = [
-    {name = "Physics Engine Contributors", email = "qazi-pk@physics-ir.dev"}
+    {name = "Qazi M. Hanif", email = "qmhanif70@gmail.com"}
 ]
 keywords = [
     "physics",
@@ -85,10 +85,10 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Qazi-pk/Physics_Intermediate_Representation"
-Documentation = "https://github.com/Qazi-pk/Physics_Intermediate_Representation"
-Repository = "https://github.com/Qazi-pk/Physics_Intermediate_Representation"
-Issues = "https://github.com/Qazi-pk/Physics_Intermediate_Representation/issues"
+Homepage = "https://github.com/Qazi-pk/physics-engine"
+Documentation = "https://github.com/Qazi-pk/physics-engine"
+Repository = "https://github.com/Qazi-pk/physics-engine"
+Issues = "https://github.com/Qazi-pk/physics-engine/issues"
 
 [project.scripts]
 pir = "physics_engine.cli:main"
