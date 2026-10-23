@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>PIR — Physics Intermediate Representation</title>
-<meta name="description" content="PIR recovers closed-form physical laws directly from noisy data using classical log-linearization and sparse regression. 12/44 exact recovery on the Feynman Tier A benchmark, zero seed wobble." />
+<meta name="description" content="PIR recovers closed-form physical laws directly from noisy data using classical log-linearization and sparse regression. Part of SRBench. PIR 3.6.0 recovers 50 of 119 Feynman equations on clean data (own runs with SRBench's tools)." />
 <meta property="og:title" content="PIR — Physics Intermediate Representation" />
 <meta property="og:description" content="The equation was already in your data. PIR reads it out." />
 <meta property="og:type" content="website" />
@@ -178,13 +178,13 @@
   <p class="eyebrow">Verified results</p>
   <h2 style="font-size:28px; font-style:italic; max-width:40ch;">Every number here traces to a committed, reproducible run.</h2>
   <div class="grid-results">
-    <div class="stat"><div class="num">12/44</div><div class="lbl">EXACT symbolic recovery — Feynman Tier A, blind, v3.4</div></div>
-    <div class="stat"><div class="num">12/44</div><div class="lbl">FORM_NUMERIC — correct functional form, constant off by decimal</div></div>
-    <div class="stat"><div class="num">0</div><div class="lbl">Seed wobble across independent verification runs</div></div>
-    <div class="stat"><div class="num">~6%</div><div class="lbl">Relative sensor noise before FORM_NUMERIC recovery degrades</div></div>
+    <div class="stat"><div class="num">35/119</div><div class="lbl">Feynman equations solved by v3.5, the version merged into SRBench (PR #210)</div></div>
+    <div class="stat"><div class="num">50/119</div><div class="lbl">Solved by PIR 3.6.0 with its fallback gates, clean data, both seeds</div></div>
+    <div class="stat"><div class="num">23/119</div><div class="lbl">Solved by 3.6.0 at the highest noise level, 0.1 (v3.5: 2)</div></div>
+    <div class="stat"><div class="num">0</div><div class="lbl">Equations solved by v3.5 but lost by 3.6.0, at any noise level</div></div>
     <div class="stat"><div class="num">0.943</div><div class="lbl">R² on Franka Panda mass-matrix M11 (up from 0.852), 5-seed verified</div></div>
   </div>
-  <p class="note">Scored under a strict symbolic-ratio classifier (exact structural match required for the EXACT count), not a loosened numeric-tolerance criterion. Source of truth for every figure is a single tracked <code>results/verified.json</code> file with two independent bit-identical runs behind each entry.</p>
+  <p class="note">Feynman figures: the 119 Feynman datasets of SRBench, fitted with SRBench's <code>evaluate_model.py</code> and scored by its own <code>assess_symbolic_model.py</code> (current master), seeds 23654 and 78901. These are my own runs, not official SRBench results; SRBench publishes official numbers only when its maintainers run a new edition. Earlier result on the 44-task Feynman Tier A set (v3.4): 12/44 exact, plus 12/44 correct form with an inexact constant. Source of truth for every figure: <code>results/verified.json</code>.</p>
 
   <p class="eyebrow" style="margin-top:48px;">PIR-Bench — 22 canonical physics tasks (separate benchmark)</p>
   <div class="grid-results">
@@ -222,7 +222,9 @@
   <div class="status-row"><span class="dot green"></span><span><strong>SRBench PR #210</strong> — merged into SRBench's standard benchmark (cavalab/srbench).</span></div>
   <div class="status-row"><span class="dot green"></span><span><strong>PR #217</strong> (target_noise fix) — merged.</span></div>
   <div class="status-row"><span class="dot green"></span><span><strong>Franka Panda dynamics</strong> — case study published as v2, supersedes v1.</span></div>
-  <div class="status-row"><span class="dot amber"></span><span><strong>v3.5</strong> — public tag released; PR #225 (SRBench pin bump to v3.5) awaiting merge.</span></div>
+  <div class="status-row"><span class="dot green"></span><span><strong>v3.5</strong> — PR #225 merged; SRBench currently installs v3.5.</span></div>
+  <div class="status-row"><span class="dot green"></span><span><strong>PIR 3.6.0</strong> — released October 2026 with fallback gates (DOI <a href="https://doi.org/10.5281/zenodo.23460311">10.5281/zenodo.23460311</a>); live demo on Hugging Face.</span></div>
+  <div class="status-row"><span class="dot amber"></span><span><strong>PR #234</strong> — update of SRBench's PIR method to 3.6.0, under review.</span></div>
 </section>
 
 <section id="papers">
@@ -232,7 +234,8 @@
   <div class="paper-item"><span>PIR-Bench v3.3</span><span class="doi"><a href="https://doi.org/10.5281/zenodo.20195566">10.5281/zenodo.20195566</a></span></div>
   <div class="paper-item"><span>PhysicsGPT v3</span><span class="doi"><a href="https://doi.org/10.5281/zenodo.19428391">10.5281/zenodo.19428391</a></span></div>
   <div class="paper-item"><span>Franka Panda mass-matrix grammar (v2)</span><span class="doi"><a href="https://doi.org/10.5281/zenodo.22157422">10.5281/zenodo.22157422</a></span></div>
-  <div class="paper-item"><span>PIR v3.4.1 (current)</span><span class="doi"><a href="https://doi.org/10.5281/zenodo.21351039">10.5281/zenodo.21351039</a></span></div>
+  <div class="paper-item"><span>PIR engine 3.6.0 (software release)</span><span class="doi"><a href="https://doi.org/10.5281/zenodo.23460311">10.5281/zenodo.23460311</a></span></div>
+  <div class="paper-item"><span>PIR v3.4.1 (SRBench reference paper)</span><span class="doi"><a href="https://doi.org/10.5281/zenodo.21351039">10.5281/zenodo.21351039</a></span></div>
 </section>
 
 <section id="about">
