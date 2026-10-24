@@ -18,7 +18,30 @@ engine's fit the regressor tries, in order, stopping at the first accepted:
 from text. A gate model replaces the engine's model only when it passes; any
 error inside a gate keeps the engine's model. `gate_info_` records what each
 gate did. Thresholds are fixed a priori (see each gate module's docstring).
+
+Safeguard (new in 3.7, OFF by default). With safeguard=True, after the engine
+and the gates, the final formula is compared with two honest baselines, a
+linear model (ridge regression) and the mean of y. Rule, fixed a priori
+(pir37 plan, section 4.2):
+
+  1. If the formula's R^2 on the training rows is >= 0.999, keep it.
+  2. R^2(formula): in-sample on the training rows (optimistic for PIR).
+  3. R^2(linear): 5-fold cross-validated, RidgeCV on standardized inputs,
+     alphas 10^-6 ... 10^3 (honest).
+  4. If both are < 0, return the mean of y.
+  5. Else if R^2(linear) > R^2(formula) + 0.05, return the linear model,
+     refitted on all training rows and written in the original variables.
+  6. Otherwise keep the formula. Any error inside the safeguard keeps it.
+At most 20,000 training rows (seeded sample) are used for the comparison.
+`gate_info_["safeguard"]` records the scores and the decision, and
+`final_source_` becomes "linear_fallback" or "mean_fallback" when it acts.
+
+Column names (3.7): a column whose name is not a valid Python identifier
+(e.g. "inv-nodes") gets a safe name ("inv_nodes") in the model string, so the
+formula can always be parsed back. Valid names are never changed.
 """
+import keyword
+import re
 import os
 import tempfile
 
@@ -32,6 +55,30 @@ from physics_engine.discovery.symbolic_search import discover_law
 # Internal target column name, unlikely to collide with real feature names.
 _TARGET_COL = "pir_target__"
 _GATE_ORDER = ("rational", "exp", "noisy")
+
+# Safeguard constants (3.7), fixed a priori -- see module docstring.
+SAFE_KEEP_R2 = 0.999
+SAFE_MARGIN = 0.05
+SAFE_FOLDS = 5
+SAFE_ALPHAS = tuple(10.0 ** k for k in range(-6, 4))
+SAFE_MAX_ROWS = 20_000
+
+
+def _safe_names(names):
+    """Valid, unique identifiers; names that already are valid are unchanged."""
+    out, used = [], set()
+    for n in names:
+        s = str(n)
+        if not s.isidentifier() or keyword.iskeyword(s):
+            s = re.sub(r"\W", "_", s)
+            if not s or s[0].isdigit() or keyword.iskeyword(s):
+                s = "x_" + s
+        base, k = s, 1
+        while s in used:
+            s, k = f"{base}_{k}", k + 1
+        used.add(s)
+        out.append(s)
+    return out
 
 
 class PIRRegressor(BaseEstimator, RegressorMixin):
@@ -54,6 +101,7 @@ class PIRRegressor(BaseEstimator, RegressorMixin):
         max_train_rows=800,
         max_time=None,
         gates=None,
+        safeguard=False,
     ):
 
         self.enforce_dimensions = enforce_dimensions
@@ -73,6 +121,7 @@ class PIRRegressor(BaseEstimator, RegressorMixin):
         self.max_train_rows = max_train_rows
         self.max_time = max_time
         self.gates = gates
+        self.safeguard = safeguard
 
     def _gate_list(self):
         g = self.gates
@@ -89,8 +138,9 @@ class PIRRegressor(BaseEstimator, RegressorMixin):
     def fit(self, X, y):
         gates = self._gate_list()  # validate before the (slow) engine fit
         if isinstance(X, pd.DataFrame):
-            self.feature_names_ = list(X.columns)
+            self.feature_names_ = _safe_names(X.columns)
             X_df = X.copy()
+            X_df.columns = self.feature_names_
         else:
             X = np.asarray(X)
             self.feature_names_ = [f"x_{i}" for i in range(X.shape[1])]
@@ -146,8 +196,70 @@ class PIRRegressor(BaseEstimator, RegressorMixin):
                 self._run_gates(X, y, gates)
             except Exception as e:  # a gate must never break the engine's result
                 self.gate_info_["error"] = f"{type(e).__name__}: {e}"
+        if self.safeguard:
+            try:
+                self._run_safeguard(X, y)
+            except Exception as e:  # the safeguard must never break the result
+                self.gate_info_["safeguard"] = {"error": f"{type(e).__name__}: {e}"}
+        if gates or self.safeguard:
             self.gate_info_["final_source"] = self.final_source_
         return self
+
+    # -------------------------------------------------------------- safeguard
+    def _run_safeguard(self, X, y):
+        from sklearn.linear_model import RidgeCV
+        from sklearn.model_selection import KFold, cross_val_score
+        from sklearn.pipeline import make_pipeline
+        from sklearn.preprocessing import StandardScaler
+
+        Xv = np.asarray(X, dtype=float)
+        yv = np.asarray(y, dtype=float).ravel()
+        info = {"rule": f"keep>={SAFE_KEEP_R2}, margin {SAFE_MARGIN}, {SAFE_FOLDS}-fold RidgeCV"}
+        self.gate_info_["safeguard"] = info
+        if len(yv) > SAFE_MAX_ROWS:
+            idx = np.random.default_rng(self.random_state).choice(len(yv), SAFE_MAX_ROWS, replace=False)
+            Xv, yv = Xv[idx], yv[idx]
+        n = len(yv)
+        var = float(np.var(yv))
+        if n < 2 * SAFE_FOLDS or var == 0:
+            info["decision"] = "skipped_too_few_rows_or_constant_y"
+            return
+        pred = self._eval(self._fn, Xv, n)
+        r2_f = 1.0 - float(np.mean((pred - yv) ** 2)) / var
+        if not np.isfinite(r2_f):
+            r2_f = -np.inf
+        info["r2_formula_train"] = r2_f
+        if r2_f >= SAFE_KEEP_R2:
+            info["decision"] = "kept_near_exact"
+            return
+
+        def ridge():
+            return make_pipeline(StandardScaler(), RidgeCV(alphas=SAFE_ALPHAS))
+
+        cv = KFold(SAFE_FOLDS, shuffle=True, random_state=self.random_state)
+        r2_lin = float(np.mean(cross_val_score(ridge(), Xv, yv, cv=cv, scoring="r2")))
+        info["r2_linear_cv"] = r2_lin
+
+        if r2_lin < 0 and r2_f < 0:
+            mean = float(np.mean(np.asarray(y, dtype=float)))
+            expr = sp.Float(mean)
+            self._adopt(expr, sp.lambdify(self.symbols_, expr, modules="numpy"), "mean_fallback")
+            info["decision"] = "mean_fallback"
+            return
+        if r2_lin > r2_f + SAFE_MARGIN:
+            Xa = np.asarray(X, dtype=float)
+            ya = np.asarray(y, dtype=float).ravel()
+            pipe = ridge().fit(Xa, ya)
+            sc, rg = pipe.named_steps["standardscaler"], pipe.named_steps["ridgecv"]
+            scale = np.where(sc.scale_ == 0, 1.0, sc.scale_)
+            w = rg.coef_ / scale
+            b = float(rg.intercept_ - np.sum(w * sc.mean_))
+            expr = sp.Float(b) + sum(sp.Float(float(wi)) * s for wi, s in zip(w, self.symbols_) if wi != 0)
+            self._adopt(expr, sp.lambdify(self.symbols_, expr, modules="numpy"), "linear_fallback")
+            info["decision"] = "linear_fallback"
+            info["ridge_alpha"] = float(rg.alpha_)
+            return
+        info["decision"] = "kept_formula"
 
     # ------------------------------------------------------------------ gates
     def _parse(self, expr_str):

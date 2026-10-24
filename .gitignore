@@ -7,3 +7,4 @@ dist/
 .venv/
 *.bak*
 .DS_Store
+debug_franka.log
