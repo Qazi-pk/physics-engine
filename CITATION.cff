@@ -5,16 +5,16 @@ title: "PIR: Physics Intermediate Representation"
 abstract: >-
   A torch-free symbolic regression engine for recovering closed-form physical
   laws from tabular data, with exact rational and exponential fallback gates
-  and a noise-tolerant power-law gate.
+  a noise-tolerant power-law gate, and an optional safeguard that falls back
+  to a linear model or the mean when no law fits.
 authors:
   - given-names: "Qazi M."
     family-names: "Hanif"
     affiliation: "Independent Researcher"
     email: "qmhanif70@gmail.com"
     orcid: "https://orcid.org/0009-0003-2818-5449"
-version: "3.6.0"
-date-released: "2026-10-19"
-doi: "10.5281/zenodo.23460311"
+version: "3.7.0"
+date-released: "2026-10-25"
 license: MIT
 repository-code: "https://github.com/Qazi-pk/physics-engine"
 keywords:
