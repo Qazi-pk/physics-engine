@@ -1,6 +1,8 @@
 # PIR — Physics Intermediate Representation
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23460311.svg)](https://doi.org/10.5281/zenodo.23460311)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23631107.svg)](https://doi.org/10.5281/zenodo.23631107)
+
+This release: 10.5281/zenodo.23631107. All versions (always the latest): 10.5281/zenodo.23460310.
 
 PIR is a torch-free symbolic regression engine for recovering closed-form
 physical laws from tabular data. It fits interpretable expressions (power
