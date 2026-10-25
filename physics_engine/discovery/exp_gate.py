@@ -33,6 +33,19 @@ EXACT_TOL = 1e-6
 POWERS = (-2, -1, 1, 2)
 MAX_VARS_PER_TERM = 3
 MAX_ROWS = 4000
+# 3.7: the candidate pool grows roughly as 3**d with d inputs (24,836 terms at
+# d = 9, the largest Feynman case; 14 million at d = 15). Above this cap the
+# gate is skipped instead of exhausting memory. Fixed a priori (pir37 plan 3A).
+MAX_POOL_TERMS = 30_000
+
+
+def pool_size_upper_bound(d):
+    """Number of candidate exponent terms _monomial_pool would build for d
+    inputs, before the finiteness/non-zero filters (so an upper bound)."""
+    from math import comb
+    n = sum(comb(d, r) * len(POWERS) ** r for r in range(1, min(MAX_VARS_PER_TERM, d) + 1))
+    n += sum(comb(d, r) * 2 ** r for r in range(MAX_VARS_PER_TERM + 1, d + 1))
+    return n
 
 
 def _monomial_pool(X, names, nonzero):
@@ -91,6 +104,8 @@ def exp_gate(X, y, names, max_terms=4, exact_tol=EXACT_TOL, seed=0):
 
     X = np.asarray(X, float)
     y = np.asarray(y, float)
+    if pool_size_upper_bound(X.shape[1]) > MAX_POOL_TERMS:
+        return None   # too many inputs for this gate (see MAX_POOL_TERMS)
     ok = np.isfinite(y) & np.all(np.isfinite(X), axis=1)
     X, y = X[ok], y[ok]
     if len(y) < 10 or np.any(y == 0) or not (np.all(y > 0) or np.all(y < 0)):

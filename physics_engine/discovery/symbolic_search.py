@@ -75,6 +75,16 @@ ALLOWED_POWERS = [1, 2, -1, -2, sp.Rational(1, 2), sp.Rational(3, 2), sp.Rationa
 ALLOWED_UNARY_FUNCTIONS = [sp.sin, sp.cos]
 
 
+
+def _debug_log():
+    """Franka diagnostics: written only when PIR_DEBUG_LOG names a file (3.7)."""
+    # Before 3.7 this always appended to ./debug_franka.log in the working directory.
+    import contextlib
+    import io
+    import os
+    path = os.environ.get("PIR_DEBUG_LOG")
+    return open(path, "a") if path else contextlib.nullcontext(io.StringIO())
+
 def _is_robot_task(task_name: str) -> bool:
     """True only for Jacobian tasks (planar_robot_j*), not FK tasks.
 
@@ -550,7 +560,7 @@ def discover_law(
 
     # Franka robot dynamics extension: expose double-angle trigonometric atoms
     # explicitly to avoid relying on identity rewrites in the symbolic search.
-    with open("debug_franka.log", "a") as _f:
+    with _debug_log() as _f:
         _f.write(f"discover_law called: task_name={task_name!r}, basis_size_before={len(basis)}\n")
         _f.write(f"  unary_funcs={unary_funcs}\n")
         _f.write(f"  enforce_dimensions={enforce_dimensions}\n")
@@ -558,11 +568,11 @@ def discover_law(
     if _is_franka_mass_task(task_name):
         added = _build_double_angle_trig_atoms(symbols, variables, unary_funcs)
         basis.extend(added)
-        with open("debug_franka.log", "a") as _f:
+        with _debug_log() as _f:
             _f.write(f"  franka ext FIRED: added {len(added)} atoms, basis_size_after={len(basis)}\n")
             _f.write(f"  added sample (first 5): {[str(a) for a in added[:5]]}\n")
     else:
-        with open("debug_franka.log", "a") as _f:
+        with _debug_log() as _f:
             _f.write(f"  franka ext NOT fired (task_name={task_name!r})\n")
 
     if include_pairwise_products:
@@ -670,7 +680,7 @@ def discover_law(
             else:
                 rejected_atoms.append((str(expr), score))
         if _is_franka_mass_task(task_name):
-            with open("debug_franka.log", "a") as _f:
+            with _debug_log() as _f:
                 _f.write(f"  AFTER dim filter: {len(valid_basis)}/{len(basis)} survive\n")
                 _f.write(f"  rejected count: {len(rejected_atoms)}\n")
                 _f.write(f"  first 10 rejected: {rejected_atoms[:10]}\n")
