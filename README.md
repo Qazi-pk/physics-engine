@@ -95,11 +95,13 @@ and 3.7.0 columns were run with the packaged code inside SRBench's official
 `pir` method (3.7.0: pre-release commit 5e6e306, identical code apart from the
 version number).
 
-On SRBench's 120 black-box (real-world and synthetic regression) datasets, one
-seed, the safeguard raises PIR's median test R² from −0.02 (3.6.0) to 0.44
-(3.7.0), and removes all out-of-memory failures; no dataset got worse. On such
-data PIR mostly returns the linear fallback: it is a law-finder, not a general
-regressor.
+On SRBench's 120 black-box (real-world and synthetic regression) datasets, the
+safeguard raises PIR's median test R² from −0.02 (3.6.0, seed 23654) to 0.38
+(3.7.0, median over seeds 23654, 15795 and 860; single seeds 0.36–0.44), about
+the level of plain linear regression (0.375 in SRBench's published results),
+and removes all out-of-memory failures; on the shared seed, no dataset got
+worse than with 3.6.0. On such data PIR mostly returns the linear fallback: it
+is a law-finder, not a general regressor.
 
 These are the author's own runs, not an official SRBench leaderboard result.
 
