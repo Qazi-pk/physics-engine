@@ -36,6 +36,12 @@ At most 20,000 training rows (seeded sample) are used for the comparison.
 `gate_info_["safeguard"]` records the scores and the decision, and
 `final_source_` becomes "linear_fallback" or "mean_fallback" when it acts.
 
+Separability (new in 3.8, OFF by default). With separability=True, if the engine's
+model is not exact, PIR looks for a split of the inputs with y = g(A) * h(B), solves g and h
+separately and accepts the product only if it reproduces the training data EXACTLY
+(max scaled error < 1e-6) and beats the engine. It runs before the gates; rules in
+physics_engine/discovery/separability/stage.py. `gate_info_["separability"]` records it.
+
 Column names (3.7): a column whose name is not a valid Python identifier
 (e.g. "inv-nodes") gets a safe name ("inv_nodes") in the model string, so the
 formula can always be parsed back. Valid names are never changed.
@@ -102,6 +108,7 @@ class PIRRegressor(BaseEstimator, RegressorMixin):
         max_time=None,
         gates=None,
         safeguard=False,
+        separability=False,
     ):
 
         self.enforce_dimensions = enforce_dimensions
@@ -122,6 +129,7 @@ class PIRRegressor(BaseEstimator, RegressorMixin):
         self.max_time = max_time
         self.gates = gates
         self.safeguard = safeguard
+        self.separability = separability
 
     def _gate_list(self):
         g = self.gates
@@ -191,6 +199,11 @@ class PIRRegressor(BaseEstimator, RegressorMixin):
         self._fn = sp.lambdify(self.symbols_, self.expr_, modules="numpy")
         self.final_source_ = "engine"
         self.gate_info_ = {"gates": list(gates), "decision": "gates_off" if not gates else None}
+        if self.separability:
+            try:
+                self._run_separability(X, y)
+            except Exception as e:  # separability must never break the engine's result
+                self.gate_info_["separability"] = {"error": f"{type(e).__name__}: {e}"}
         if gates:
             try:
                 self._run_gates(X, y, gates)
@@ -201,9 +214,32 @@ class PIRRegressor(BaseEstimator, RegressorMixin):
                 self._run_safeguard(X, y)
             except Exception as e:  # the safeguard must never break the result
                 self.gate_info_["safeguard"] = {"error": f"{type(e).__name__}: {e}"}
-        if gates or self.safeguard:
+        if gates or self.safeguard or self.separability:
             self.gate_info_["final_source"] = self.final_source_
         return self
+
+    # ----------------------------------------------------------- separability
+    def _run_separability(self, X, y):
+        from physics_engine.discovery.separability.stage import run_separability
+
+        Xv = np.asarray(X, dtype=float)
+        yv = np.asarray(y, dtype=float).ravel()
+        scale = float(max(np.max(np.abs(yv)), 1e-300))
+        base = self._eval(self._fn, Xv, len(yv))
+        base_err = float(np.max(np.abs(base - yv)) / scale)
+        if not np.isfinite(base_err):
+            base_err = float("inf")
+        X_df = pd.DataFrame(Xv, columns=self.feature_names_)
+        txt, factors, info = run_separability(X_df, yv, base_err)
+        self.gate_info_["separability"] = info
+        if txt is None:
+            return
+        expr = sp.Mul(*factors)
+        fn = sp.lambdify(self.symbols_, expr, modules="numpy")
+        if float(np.max(np.abs(self._eval(fn, Xv, len(yv)) - yv)) / scale) >= 1e-6:
+            info["decision"] = "rejected_on_recheck"
+            return
+        self.expr_, self._fn, self.final_source_ = sp.sympify(txt, locals={str(s): s for s in self.symbols_}), fn, "separability"
 
     # -------------------------------------------------------------- safeguard
     def _run_safeguard(self, X, y):
