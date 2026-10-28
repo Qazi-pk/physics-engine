@@ -81,3 +81,16 @@ def test_regressor_separability_recovers_nested_product():
 def test_regressor_separability_off_by_default():
     from physics_engine.sklearn_adapter import PIRRegressor
     assert PIRRegressor().separability is False
+
+
+def test_stage_extracts_on_fixed_subsample_and_checks_all_rows():
+    # R2b: extraction on at most EXTRACT_ROWS rows (fixed seed), acceptance on every row
+    import pandas as pd
+    from physics_engine.discovery.separability import stage
+    rng = np.random.default_rng(11)
+    X = pd.DataFrame(rng.uniform(1, 3, (12000, 4)), columns=["a0", "a1", "a2", "a3"])
+    y = (X.a0 * X.a2 * np.sqrt(X.a1 ** 2 + X.a3 ** 2)).to_numpy()
+    txt, factors, info = stage.run_separability(X, y, base_err=1.0)
+    assert info["extract_rows"] == stage.EXTRACT_ROWS == 5000
+    assert info["n_rows"] == 12000
+    assert txt is not None and info["accepted_err_scaled"] < stage.EXACT_TOL

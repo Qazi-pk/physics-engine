@@ -6,6 +6,8 @@ verified V1 2026-10-28: 12 gain laws x 12 seeds, 144/144). Rules (claude/pir38_p
   R1  detection by the cross-term test (crossterm.py), also inside the recursion;
   R1b the block split 'single-variable blocks | multi-variable blocks' is tried first;
   R2  at most MAX_ATTEMPTS = 4 extraction attempts (counted, no wall-clock budget);
+  R2b extraction runs on a fixed subsample of at most EXTRACT_ROWS = 5,000 training rows
+      (numpy default_rng(0), sorted indices); detection and the R3 check use all rows;
   R3  accept only an EXACT recombination (max scaled error < 1e-6) that beats the engine.
 The helper functions below are copied verbatim from pirsep_regressor.py v7.
 """
@@ -22,6 +24,7 @@ from .recursive import extract_recursive
 EXACT_TOL = 1e-6
 TOPK = 8
 MAX_ATTEMPTS = 4
+EXTRACT_ROWS = 5000
 CANON = True
 CANON_MAX_OPS = 4000
 
@@ -189,6 +192,12 @@ def run_separability(X_df, y, base_err):
         bs = (list(bs[0]), list(bs[1]))
         cands = [bs] + [c for c in cands if set(c[0]) != set(bs[0]) and set(c[1]) != set(bs[0])]
     info["n_mult_candidates"] = len(cands)
+    if len(df) > EXTRACT_ROWS:
+        idx = np.sort(np.random.default_rng(0).choice(len(df), EXTRACT_ROWS, replace=False))
+        df_x = df.iloc[idx].reset_index(drop=True)
+    else:
+        df_x = df
+    info["extract_rows"] = len(df_x)
     attempts = 0
     for A, B in cands:
         for ga, gb in ((A, B), (B, A)):
@@ -197,7 +206,7 @@ def run_separability(X_df, y, base_err):
                 return None, None, info
             attempts += 1
             t1 = time.time()
-            res = extract_recursive(df, ga, gb, target_col="target")
+            res = extract_recursive(df_x, ga, gb, target_col="target")
             rec = {"split": "+".join(ga) + " | " + "+".join(gb), "secs": round(time.time() - t1, 1)}
             if res is None:
                 rec["result"] = "None"
