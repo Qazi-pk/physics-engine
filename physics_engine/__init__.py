@@ -10,6 +10,6 @@ the entire engine to be present. Access submodules explicitly, e.g.
 `from physics_engine.pipelines import run_system_identification`.
 """
 
-__version__ = "3.8.0.dev0"
+__version__ = "3.8.0"
 
 __all__ = ["__version__"]

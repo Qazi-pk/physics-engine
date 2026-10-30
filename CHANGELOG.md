@@ -1,5 +1,25 @@
 # Changelog
 
+## 3.8.0 — 2026-10-30
+
+- `PIRRegressor(separability=False)`: optional separability stage. If the
+  engine's model is not exact, PIR tests whether `y = g(A) * h(B)` for a split
+  of the inputs into groups A and B, solves g and h separately (recursively),
+  and accepts the product only if it reproduces the training data **exactly**
+  (max relative error < 1e-6) and beats the engine. Off by default, so 3.7
+  behaviour is unchanged. Rules fixed before benchmarking:
+  - detection by a deterministic cross-term test (quadratic fit of log|y| on
+    the centred log-inputs; a split is multiplicative if its cross terms
+    account for less than 0.5% of the spread of log|y|); at most 10 inputs;
+  - inseparable variables are grouped into blocks, and the split "single
+    variables | multi-variable blocks" is tried first;
+  - at most 4 extraction attempts (a count, not a clock, so results do not
+    depend on machine speed), each on a fixed 5,000-row subsample; the exact
+    acceptance check uses all rows.
+- New subpackage `physics_engine/discovery/separability/`.
+- Order of stages: engine → separability → gates → safeguard.
+- Tests: `tests/test_separability_crossterm.py`.
+
 ## 3.7.0 — 2026-10-25
 
 - `PIRRegressor(safeguard=False)`: optional safeguard after the engine and the
