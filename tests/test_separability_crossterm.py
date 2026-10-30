@@ -37,7 +37,10 @@ def test_fully_inseparable_gives_nothing():
 def test_sorted_and_deterministic():
     d = _df(lambda a, b, c, d: a * c * np.sqrt(b ** 2 + d ** 2))
     r1, r2 = crossterm_search(d)[1], crossterm_search(d.copy())[1]
-    assert [x[:4] for x in r1] == [x[:4] for x in r2]
+    # same splits, same order, same MULT/NONE decisions; the scores may differ in the last
+    # digits (BLAS results depend on memory alignment, seen on Python 3.10 in CI)
+    assert [x[:3] for x in r1] == [x[:3] for x in r2]
+    assert np.allclose([x[3] for x in r1], [x[3] for x in r2], rtol=1e-9, atol=0)
     assert all(r1[i][3] <= r1[i + 1][3] for i in range(len(r1) - 1))
     assert all((x[2] == "MULT") == (x[3] < TAU) for x in r1)
 
