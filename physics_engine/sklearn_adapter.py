@@ -41,6 +41,9 @@ model is not exact, PIR looks for a split of the inputs with y = g(A) * h(B), so
 separately and accepts the product only if it reproduces the training data EXACTLY
 (max scaled error < 1e-6) and beats the engine. It runs before the gates; rules in
 physics_engine/discovery/separability/stage.py. `gate_info_["separability"]` records it.
+Since 3.9, a second (late) separability pass runs after the gates when nothing is exact
+yet, with extra extraction solvers (rules R5-R8 in stage.py); `gate_info_["separability_late"]`
+records it.
 
 Column names (3.7): a column whose name is not a valid Python identifier
 (e.g. "inv-nodes") gets a safe name ("inv_nodes") in the model string, so the
@@ -209,6 +212,33 @@ class PIRRegressor(BaseEstimator, RegressorMixin):
                 self._run_gates(X, y, gates)
             except Exception as e:  # a gate must never break the engine's result
                 self.gate_info_["error"] = f"{type(e).__name__}: {e}"
+        if self.separability:
+            # 3.9 prototype (C): late pass with the transformed-sum solvers, only if nothing so far
+            # is exact; runs after the gates so that a clean rational form is never displaced
+            from physics_engine.discovery.separability import exact as _sep_exact
+            first = self.gate_info_.get("separability")
+            try:
+                _sep_exact.ENABLE_TRANSFORMED = True
+                self._run_separability(X, y)
+            except Exception as e:
+                self.gate_info_["separability_late"] = {"error": f"{type(e).__name__}: {e}"}
+            finally:
+                _sep_exact.ENABLE_TRANSFORMED = False
+            late = self.gate_info_.get("separability")
+            if late is not first and self.final_source_ == "separability" and np.all(np.asarray(X, dtype=float) > 0):
+                # readable form for the late pass: merge roots of positive factors
+                # (sqrt(G)*sqrt(m1 + m2) -> sqrt(G*(m1 + m2))), kept only if it re-verifies
+                try:
+                    merged = sp.powsimp(self.expr_, force=True)
+                    fn_m = sp.lambdify(self.symbols_, merged, modules="numpy")
+                    Xv = np.asarray(X, dtype=float); yv = np.asarray(y, dtype=float).ravel()
+                    if float(np.max(np.abs(self._eval(fn_m, Xv, len(yv)) - yv)) / np.max(np.abs(yv))) < 1e-6:
+                        self.expr_, self._fn = merged, fn_m
+                except Exception:
+                    pass
+            if late is not first:
+                self.gate_info_["separability_late"] = late
+                self.gate_info_["separability"] = first
         if self.safeguard:
             try:
                 self._run_safeguard(X, y)
@@ -234,7 +264,12 @@ class PIRRegressor(BaseEstimator, RegressorMixin):
         self.gate_info_["separability"] = info
         if txt is None:
             return
-        expr = sp.Mul(*factors)
+        # 3.9 prototype: prefer the verified model string (exact Float literals); the factors may
+        # print with fewer digits than they hold, which made a correct product fail the recheck
+        try:
+            expr = sp.sympify(txt, locals={str(s): s for s in self.symbols_}) if info.get("string_verified") else sp.Mul(*factors)
+        except Exception:
+            expr = sp.Mul(*factors)
         fn = sp.lambdify(self.symbols_, expr, modules="numpy")
         if float(np.max(np.abs(self._eval(fn, Xv, len(yv)) - yv)) / scale) >= 1e-6:
             info["decision"] = "rejected_on_recheck"

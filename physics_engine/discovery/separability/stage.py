@@ -9,6 +9,18 @@ verified V1 2026-10-28: 12 gain laws x 12 seeds, 144/144). Rules (claude/pir38_p
   R2b extraction runs on a fixed subsample of at most EXTRACT_ROWS = 5,000 training rows
       (numpy default_rng(0), sorted indices); detection and the R3 check use all rows;
   R3  accept only an EXACT recombination (max scaled error < 1e-6) that beats the engine.
+PIR 3.9 additions (claude/pir39_plan.md; fixed before the pre-registered runs):
+  R5  sign-aware detection (signaware.py): when y takes both signs and all inputs are positive,
+      pairs are scored by the log-free identity y*y_ab - y_a*y_b = 0 (degree-4 polynomial
+      surrogate in standardized log-inputs), linked if score >= 0.5; otherwise R1 as in 3.8;
+  R6  the additive-sum extraction retries with a constant and reciprocal atoms only if the 3.8
+      atom set is not exact;
+  R7  late pass (sklearn_adapter, after the gates, only if nothing is exact so far): factors may
+      also be solved as h**p = sum of <= 3 atoms, p in {-2, 2} over power atoms of <= 2
+      variables, or p in {+-1, +-1/2, +-2} over a small sin/cos library (exact.py), chosen by
+      exhaustive best subset; exact acceptance (R3) unchanged; readable forms (dominant
+      monomial out of a root, merged roots) are used only if they re-verify numerically;
+  R8  the adapter's final recheck evaluates the verified model string.
 The helper functions below are copied verbatim from pirsep_regressor.py v7.
 """
 import time
@@ -17,7 +29,7 @@ import numpy as np
 import pandas as pd
 import sympy as sp
 
-from .crossterm import block_split, crossterm_search
+from .signaware import block_split, crossterm_search
 from .exact import _evaluate
 from .recursive import extract_recursive
 
