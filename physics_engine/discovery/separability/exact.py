@@ -138,7 +138,7 @@ def _evaluate(expr, df):
     return np.asarray(f(*args), dtype=float)
 
 
-def _solve_additive_sum(df, cols, residual, max_atoms=6):
+def _solve_additive_sum_core(df, cols, residual, max_atoms=6, extended=False):
     """
     Find the sparse additive combination of a SMALL, CURATED basis
     (each column to the first and second power, pairwise products within
@@ -169,6 +169,11 @@ def _solve_additive_sum(df, cols, residual, max_atoms=6):
     candidates += [symbols[c] ** 2 for c in cols]
     candidates += [symbols[c1] * symbols[c2] for c1, c2 in combinations(cols, 2)]
     candidates += [symbols[c1] * symbols[c2] ** 2 for c1, c2 in permutations(cols, 2)]
+    if extended:
+        # 3.9 prototype (B): a constant and reciprocals, so differences such as 1/r2 - 1/r1
+        # are reachable; used only after the 3.8 atom set has failed (see wrapper below)
+        candidates += [sp.Integer(1)]
+        candidates += [1 / symbols[c] for c in cols if np.all(np.abs(df[c].to_numpy(dtype=float)) > 1e-300)]
 
     sub = df[list(cols)].copy()
     sub["__residual__"] = residual
@@ -187,6 +192,17 @@ def _solve_additive_sum(df, cols, residual, max_atoms=6):
     expr = sum(sp.Float(float(c), 12) * e for c, e in zip(coeffs, selected))
     return sp.simplify(expr), max_rel_err
 
+
+
+def _solve_additive_sum(df, cols, residual, max_atoms=6):
+    """3.8 atom set first; the extended set (constant, reciprocals) only if that is not exact."""
+    h, err = _solve_additive_sum_core(df, cols, residual, max_atoms=max_atoms)
+    if h is not None and err < 1e-6:
+        return h, err
+    h2, err2 = _solve_additive_sum_core(df, cols, residual, max_atoms=max_atoms, extended=True)
+    if h2 is not None and err2 < err:
+        return h2, err2
+    return h, err
 
 def _solve_reciprocal_sum(df, cols, residual, max_atoms=6):
     """
@@ -446,6 +462,167 @@ def _solve_rational_sum(df, cols, residual, max_atoms=6):
     return h_expr, max_rel_err
 
 
+ENABLE_TRANSFORMED = False
+
+
+def _best_subset(A, target, kmax=3, tol=1e-9):
+    """Exhaustive best subset of at most kmax columns, smallest size first, via the Gram matrix
+    (each subset costs a kmax x kmax solve), then verified on all rows by max error.
+    Returns (idx, coef, rel_max_err) of the first exact subset, else of the best one."""
+    scale = np.sqrt((A ** 2).mean(axis=0))
+    scale[scale == 0] = 1.0
+    As = A / scale
+    G = As.T @ As
+    b = As.T @ target
+    tt = float(target @ target)
+    tn = float(np.max(np.abs(target)))
+    best = (float("inf"), None, None)
+    for k in range(1, kmax + 1):
+        cands = []
+        for idx in combinations(range(As.shape[1]), k):
+            Gs = G[np.ix_(idx, idx)]
+            try:
+                x = np.linalg.solve(Gs, b[list(idx)])
+            except np.linalg.LinAlgError:
+                continue
+            sse = tt - float(b[list(idx)] @ x)
+            cands.append((sse, idx))
+        cands.sort(key=lambda c: c[0])
+        for sse, idx in cands[:20]:          # verify only the most promising subsets on all rows
+            X = As[:, idx]
+            coef, *_ = np.linalg.lstsq(X, target, rcond=None)
+            r = float(np.max(np.abs(X @ coef - target))) / tn
+            if r < best[0]:
+                best = (r, idx, coef / scale[list(idx)])
+        if best[0] < tol:
+            break
+    return best[1], best[2], best[0]
+
+
+def _power_atoms(cols, df):
+    """3.9 prototype (C): monomials of at most two of the columns, exponents in a fixed set,
+    plus a constant. Only for small groups (<= 3 columns)."""
+    E1 = (-6, -4, -3, -2, -1, 1, 2, 3, 4)
+    E2 = (-6, -4, -2, -1, 1, 2)
+    s = {c: sp.Symbol(c) for c in cols}
+    pos = [c for c in cols if np.all(df[c].to_numpy(dtype=float) > 0)]
+    atoms = [sp.Integer(1)] + [s[c] ** a for c in pos for a in E1]
+    atoms += [s[a] ** i * s[b] ** j for a, b in combinations(pos, 2) for i in E2 for j in E2]
+    return s, atoms
+
+
+def _solve_transformed_sum(df, cols, residual, power, max_atoms=6):
+    """3.9 prototype (C): residual**power = sum of atoms (power -2 or 2), solved exactly by the
+    same greedy atom selection + least squares, then h = (sum)**(1/power)."""
+    if len(cols) > 3 or np.any(np.abs(residual) < 1e-300) or not np.all(np.isfinite(residual)):
+        return None, float("inf")
+    target = residual.astype(float) ** power
+    if not np.all(np.isfinite(target)):
+        return None, float("inf")
+    symbols, atoms = _power_atoms(cols, df)
+    sub = df[list(cols)].copy()
+    cols_v = []
+    keep = []
+    for e in atoms:
+        v = _evaluate(e, sub)
+        if np.all(np.isfinite(v)):
+            cols_v.append(v); keep.append(e)
+    if not keep:
+        return None, float("inf")
+    A = np.column_stack(cols_v)
+    # best subset of 1..3 atoms (exhaustive, deterministic order); stop at the smallest exact size
+    idx, coef, _ = _best_subset(A, target, kmax=3)
+    if idx is None:
+        return None, float("inf")
+    selected = [keep[i] for i in idx]
+    Q = A[:, idx] @ coef
+    if np.any(Q <= 0):
+        return None, float("inf")
+    sign = np.sign(np.median(residual))
+    h_vals = sign * Q ** (1.0 / power)
+    err = float(np.max(np.abs(h_vals - residual) / (np.abs(residual) + 1e-12)))
+    Qe = sum(sp.Float(float(c), 15) * e for c, e in zip(coef, selected))
+    h = sign * Qe ** sp.Rational(1, power)
+    # readable form: with two terms where one dominates on every row, write
+    # Q = M*(1 + r) and pull the monomial M out of the root (all inputs are positive here)
+    if len(selected) == 2:
+        vals = [c * _evaluate(e, sub) for c, e in zip(coef, selected)]
+        for i, j in ((0, 1), (1, 0)):
+            if np.all(np.abs(vals[j]) < np.abs(vals[i])) and selected[i] != 1:
+                pos = {s_: sp.Symbol(str(s_), positive=True) for s_ in symbols.values()}
+                M = (sp.Float(float(coef[i]), 15) * selected[i]).xreplace(pos)
+                r = (sp.Float(float(coef[j] / coef[i]), 15) * selected[j] / selected[i]).xreplace(pos)
+                r = sp.powsimp(r)
+                hp = sign * sp.powsimp(sp.expand_power_base(M ** sp.Rational(1, power), force=True)) * (1 + r) ** sp.Rational(1, power)
+                plain = {v_: sp.Symbol(str(v_)) for v_ in hp.free_symbols}
+                h = hp.xreplace(plain)
+                break
+    return h, err
+
+
+def _trig_atoms(cols, df):
+    """3.9 prototype (A): a small 1-D function library for a factor h(B) of at most 4 variables:
+    sin/cos of one variable (also of half the variable, squared), optionally times one or two
+    other variables, plus the variables themselves and a constant."""
+    s = {c: sp.Symbol(c) for c in cols}
+    atoms = [sp.Integer(1)] + [s[c] for c in cols]
+    for c in cols:
+        x = s[c]
+        trig = [sp.sin(x), sp.cos(x), sp.sin(x) ** 2, sp.cos(x) ** 2, sp.sin(x / 2) ** 2, sp.cos(x / 2) ** 2]
+        atoms += trig
+        others = [o for o in cols if o != c]
+        for k in (1, 2):
+            for grp in combinations(others, k):
+                m = sp.Mul(*[s[o] for o in grp])
+                atoms += [m * sp.sin(x), m * sp.cos(x), m * sp.cos(x) ** 2]
+    return s, atoms
+
+
+def _solve_library(df, cols, residual, max_atoms=6):
+    """3.9 prototype (A): residual**p (p in 1, -1, 1/2, -1/2, 2, -2) = sum of at most 3 library
+    atoms, exhaustive best subset, exact only."""
+    if len(cols) > 4 or not np.all(np.isfinite(residual)) or np.any(np.abs(residual) < 1e-300):
+        return None, float("inf")
+    symbols, atoms = _trig_atoms(cols, df)
+    sub = df[list(cols)].copy()
+    vals, keep = [], []
+    for e in atoms:
+        v = _evaluate(e, sub)
+        if (np.all(np.isfinite(v)) and np.std(v) > 0) or e == 1:
+            vals.append(np.asarray(v, dtype=float) * np.ones(len(sub))); keep.append(e)
+    A = np.column_stack(vals)
+    positive = bool(np.all(residual > 0) or np.all(residual < 0))
+    best = (float("inf"), None)
+    for p in (1, -1, sp.Rational(1, 2), sp.Rational(-1, 2), 2, -2):
+        if (not float(p).is_integer() or p in (2, -2)) and not positive:
+            continue
+        sgn = float(np.sign(np.median(residual))) if positive else 1.0
+        target = (sgn * residual) ** float(p) if positive else residual ** float(p)
+        idx, coef, r = _best_subset(A, target, kmax=3)
+        if idx is None or r >= 1e-9:
+            continue
+        Qe = sum(sp.Float(float(c), 15) * keep[i] for c, i in zip(coef, idx))
+        h = (sgn if positive else 1.0) * Qe ** (sp.Integer(1) / sp.sympify(p))
+        try:
+            hv = _evaluate(h, sub)
+            err = float(np.max(np.abs(hv - residual) / (np.abs(residual) + 1e-12)))
+        except Exception:
+            continue
+        if err < best[0]:
+            best = (err, h)
+        if err < 1e-6:
+            break
+    return (best[1], best[0]) if best[1] is not None else (None, float("inf"))
+
+
+def _solve_recip_square_ext(df, cols, residual, max_atoms=6):
+    return _solve_transformed_sum(df, cols, residual, -2, max_atoms)
+
+
+def _solve_square_ext(df, cols, residual, max_atoms=6):
+    return _solve_transformed_sum(df, cols, residual, 2, max_atoms)
+
+
 def extract_multiplicative_exact(df, group_a, group_b, target_col, max_atoms=6):
     """
     Given a CONFIRMED multiplicative split f = g(group_a) * h(group_b),
@@ -454,6 +631,35 @@ def extract_multiplicative_exact(df, group_a, group_b, target_col, max_atoms=6):
     Returns a dict with keys: ordering, g_expr, h_expr, h_fit_max_rel_err,
     recombined_max_rel_err.
     """
+    base = [
+        ("direct", _solve_additive_sum),
+        ("reciprocal", _solve_reciprocal_sum),
+        ("square", _solve_square_sum),
+        ("rational", _solve_rational_sum),
+    ]
+    results = _extract_with(df, group_a, group_b, target_col, max_atoms, base)
+    if results and min(r["recombined_max_rel_err"] for r in results) < 1e-6:
+        results.sort(key=lambda r: r["recombined_max_rel_err"])
+        return results[0]
+    # 3.9 prototype (C): transformed-sum solvers only when the 3.8 solvers found nothing exact,
+    # and only in the late separability pass (after the gates), see sklearn_adapter
+    if not ENABLE_TRANSFORMED:
+        if not results:
+            return None
+        results.sort(key=lambda r: r["recombined_max_rel_err"])
+        return results[0]
+    results += _extract_with(df, group_a, group_b, target_col, max_atoms, [
+        ("recip_square_ext", _solve_recip_square_ext),
+        ("square_ext", _solve_square_ext),
+        ("library", _solve_library),
+    ])
+    if not results:
+        return None
+    results.sort(key=lambda r: r["recombined_max_rel_err"])
+    return results[0]
+
+
+def _extract_with(df, group_a, group_b, target_col, max_atoms, solvers):
     results = []
     for first, second, first_name, second_name in [
         (group_a, group_b, "A", "B"),
@@ -467,12 +673,7 @@ def extract_multiplicative_exact(df, group_a, group_b, target_col, max_atoms=6):
             if not np.all(np.isfinite(residual)):
                 continue
 
-            for solver_name, solver in [
-                ("direct", _solve_additive_sum),
-                ("reciprocal", _solve_reciprocal_sum),
-                ("square", _solve_square_sum),
-                ("rational", _solve_rational_sum),
-            ]:
+            for solver_name, solver in solvers:
                 h_expr, h_fit_max_rel_err = solver(
                     df, second, residual, max_atoms=max_atoms
                 )
@@ -500,9 +701,6 @@ def extract_multiplicative_exact(df, group_a, group_b, target_col, max_atoms=6):
                     "recombined_max_rel_err": max_rel_err,
                 })
 
-    if not results:
-        return None
-    results.sort(key=lambda r: r["recombined_max_rel_err"])
-    return results[0]
+    return results
 
 

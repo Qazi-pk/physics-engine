@@ -1,5 +1,28 @@
 # Changelog
 
+## 3.9.0 — 2026-11-03
+
+Separability (still opt-in, `separability=True`) recovers more laws. Rules fixed
+before benchmarking (R5–R8 in `physics_engine/discovery/separability/stage.py`):
+
+- **Sign-changing targets** (R5): when y takes both signs, splits are detected
+  with a log-free derivative test, y·∂²y/∂a∂b − (∂y/∂a)(∂y/∂b) = 0, instead of
+  the log|y| cross-term test (new module `separability/signaware.py`).
+- **Reciprocal terms** (R6): the additive extraction retries with a constant and
+  1/x terms when the 3.8 terms are not exact (e.g. 1/r2 − 1/r1).
+- **Late pass** (R7): if nothing is exact after the gates, separability runs again
+  with two more solvers for a factor h: h^±2 as a short sum of power terms
+  (relativistic roots such as 1/√(1 − v²/c²)), and a small sin/cos library.
+  Exact acceptance is unchanged; it runs after the gates, so it never displaces
+  an exact rational or exponential form.
+- **Readable forms**: a dominant monomial is pulled out of a root and roots of
+  positive factors are merged, only if the result re-verifies numerically
+  (e.g. `c**2*m/sqrt(1 - v**2/c**2)`).
+- **Fix** (R8): the final check evaluates the verified model string; before, a
+  correct product could be rejected because its factors printed fewer digits
+  than they hold.
+- Tests: `tests/test_separability_v39.py`.
+
 ## 3.8.0 — 2026-10-30
 
 - `PIRRegressor(separability=False)`: optional separability stage. If the
