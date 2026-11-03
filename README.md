@@ -15,7 +15,7 @@ are tested; other subpackages are experimental (see *Status* below).
 ## Install
 
 ```bash
-pip install "git+https://github.com/Qazi-pk/physics-engine.git@v3.8.0"
+pip install "git+https://github.com/Qazi-pk/physics-engine.git@v3.9.0"
 ```
 
 Requires Python 3.9+ (CI tests 3.10 and 3.12). Dependencies: numpy, scipy,
@@ -84,6 +84,15 @@ PIR looks for a split of the inputs into groups A and B with
 order engine → separability → gates → safeguard. Separability adds laws only
 on exact (noise-free) data; on noisy data it does not fire.
 
+New in 3.9: targets that change sign (detected with a log-free derivative
+test), differences such as `1/r2 - 1/r1`, and a late pass after the gates
+that solves a factor as a root of a short sum of power terms (relativistic
+laws such as `m*c**2/sqrt(1 - v**2/c**2)`) or with a small sin/cos library
+(`F*r*sin(theta)`). The late pass runs only when nothing is exact after the
+gates, so it never replaces an exact rational or exponential form;
+`model.gate_info_["separability_late"]` records it. Rules R5–R8 are in
+`physics_engine/discovery/separability/stage.py`.
+
 ## Safeguard (new in 3.7)
 
 PIR looks for physical laws. On data without one, its best formula can fit
@@ -107,19 +116,26 @@ at noise 0, two seeds, scored with SRBench's own `assess_symbolic_model.py`
 
 Symbolic solutions out of 119 (seeds 23654 / 78901):
 
-| Target noise | 3.5 engine | 3.6.0 (`gates="all"`) | 3.7.0 (+ `safeguard=True`) | 3.8.0 (+ `separability=True`) |
-|---|---|---|---|---|
-| 0 | 35 / 35 | 50 / 50 | 50 / 50 | **58 / 58** |
-| 0.001 | 35 / 35 | 36 / 36 | 36 / 36 | 36 / 36 |
-| 0.01 | 30 / 29 | 35 / 35 | 35 / 35 | 35 / 35 |
-| 0.1 | 2 / 2 | 23 / 22 | 23 / 22 | 23 / 22 |
+| Target noise | 3.5 engine | 3.6.0 (`gates="all"`) | 3.7.0 (+ `safeguard=True`) | 3.8.0 (+ `separability=True`) | 3.9.0 |
+|---|---|---|---|---|---|
+| 0 | 35 / 35 | 50 / 50 | 50 / 50 | 58 / 58 | **74 / 74** |
+| 0.001 | 35 / 35 | 36 / 36 | 36 / 36 | 36 / 36 | 36 / 36 |
+| 0.01 | 30 / 29 | 35 / 35 | 35 / 35 | 35 / 35 | 35 / 35 |
+| 0.1 | 2 / 2 | 23 / 22 | 23 / 22 | 23 / 22 | 23 / 22 |
 
-No dataset solved by an earlier version is lost at any noise level. The 3.6.0,
-3.7.0 and 3.8.0 columns were run with the packaged code inside SRBench's
-official `pir` method (pre-release commits 5e6e306 for 3.7.0 and 53d1d90 for
-3.8.0, identical code apart from the version number). The 8 laws added by
-separability in 3.8 are I.9.18, I.13.4, I.24.6, II.6.15a, II.11.3, II.11.27,
-II.37.1 and III.10.19.
+No dataset solved by an earlier version is lost at any noise level. The 3.6.0
+to 3.9.0 columns were run with the packaged code inside SRBench's official
+`pir` method (pre-release commits 5e6e306 for 3.7.0, 53d1d90 for 3.8.0 and
+af639aa for 3.9.0, identical code apart from the version number). The 8 laws
+added by separability in 3.8 are I.9.18, I.13.4, I.24.6, II.6.15a, II.11.3,
+II.11.27, II.37.1 and III.10.19.
+
+The 16 laws added in 3.9 are I.10.7, I.12.11, I.13.12, I.15.10, I.18.12,
+I.18.14, I.48.2, II.2.42, II.6.11, II.13.23, II.13.34, II.15.4, II.15.5,
+III.17.37, test_1 and test_5. 3.9 was developed on a fixed half of the 119
+datasets (chosen by the parity of the SHA-256 hash of each name, before any
+3.9 work); it gained 10 laws on that half and 6 on the other half, which was
+not inspected during 3.9 development (3.6–3.8 were developed on all 119).
 
 On SRBench's 120 black-box (real-world and synthetic regression) datasets, the
 safeguard raises PIR's median test R² from −0.02 (3.6.0, seed 23654) to 0.38
@@ -134,6 +150,12 @@ is a law-finder, not a general regressor.
 worse by more than 0.01. Separability did not change a single final model
 there (black-box data has no exact product law); median fit time is unchanged
 (15 s), the slowest fit took 433 s (264 s with 3.7.0).
+
+3.9.0 gives the same black-box results as 3.8.0 on seed 23654: 120/120
+results, median test R² 0.436, no dataset better or worse by more than 0.01;
+neither separability pass changed a final model. Median fit time 13 s; the
+slowest fit took 1,019 s (433 s with 3.8.0), because the late pass searches to
+its count limit when nothing is exact.
 
 These are the author's own runs, not an official SRBench leaderboard result.
 
