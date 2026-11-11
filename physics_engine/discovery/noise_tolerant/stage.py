@@ -33,6 +33,9 @@ V7  Replacement. Among accepted forms the lowest held-out MSE wins; near-ties (r
     same law written two ways) go to the expression with fewest operations, then to the family tried
     first (sep, exp, rat). It replaces the current model only if its held-out MSE is lower than the
     current model's on the same rows. The 3.7 safeguard runs afterwards as before.
+V9  Minimum data (amendment, 11 Nov 2026, after the first black-box run failed on a 100-row
+    dataset): the stage runs only with at least 2,000 training rows, so that its held-out set has
+    at least 500 rows. Feynman training sets have 75,000 rows, so V2/V3 results are unaffected.
 V8  Output form. Equivalent forms that SRBench's scorer can verify without assuming positive
     variables (SRBench issue #235), each checked numerically (relative 1e-9) against the fitted
     model before use: exact roots written as monomials; a dominant monomial pulled out of a
@@ -45,6 +48,7 @@ import sympy as sp
 from . import vsep, vexp, vrat
 
 MAX_ROWS = 20000
+MIN_TRAIN_ROWS = 2000   # V9
 EXACT_TOL = 1e-6
 
 
@@ -63,6 +67,9 @@ def run_noise_tolerant(X, y, names, current_pred, seed=0):
     X = np.asarray(X, dtype=float)
     y = np.asarray(y, dtype=float).ravel()
     info = {"tried": {}}
+    if len(y) < MIN_TRAIN_ROWS:
+        info["decision"] = "too_few_rows"
+        return None, info
     scale = float(max(np.max(np.abs(y)), 1e-300))
     cur_err = float(np.max(np.abs(current_pred - y)) / scale)
     if np.isfinite(cur_err) and cur_err < EXACT_TOL:
