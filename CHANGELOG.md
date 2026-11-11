@@ -1,5 +1,33 @@
 # Changelog
 
+## 3.10.0 — 2026-11-12
+
+New opt-in **noise-tolerant stage**, `PIRRegressor(noise_tolerant=True)`
+(default `False`). All earlier stages accept a law only if it reproduces the
+training data exactly, which noisy data never does. Rules fixed before benchmarking (V1–V9 in
+`physics_engine/discovery/noise_tolerant/stage.py`):
+
+- **When** (V1): only if no model so far is exact; an exact model is never
+  replaced. It runs after the late separability pass and before the safeguard.
+- **Families** (V3): separable `C*M(A)*h(B)` (a monomial times a short sum of
+  power or sin/cos terms, or its root, square or inverse); power law times
+  `exp` of a short sum of monomials; and short rationals `P/Q` (up to 5 inputs).
+- **Validated acceptance** (V2, V4–V6): coefficients fitted in y space on 75% of
+  up to 20,000 training rows; exponents and coefficient ratios snapped to
+  simple fractions within 3 standard errors; accepted only if snapping costs
+  less than 2% held-out error and the form predicts the held-out 25% within 5%
+  of a flexible reference model.
+- **Replacement** (V7): the best accepted form replaces the current model only
+  if it predicts the held-out rows better.
+- **Minimum data** (V9, amendment): the stage needs at least 2,000 training
+  rows. Added after the first black-box check failed on a 100-row dataset,
+  where it judged on about 19 held-out rows.
+- **Output forms** (V8): written so that SRBench's scorer can verify them
+  without assuming positive variables (SRBench issue #235): exact roots as
+  monomials, a dominant term pulled out of a root, common factors out of sums.
+  Each rewritten form is checked numerically against the fitted model.
+- Tests: `tests/test_noise_tolerant_v310.py`.
+
 ## 3.9.0 — 2026-11-03
 
 Separability (still opt-in, `separability=True`) recovers more laws. Rules fixed
