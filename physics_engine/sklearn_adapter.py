@@ -112,6 +112,7 @@ class PIRRegressor(BaseEstimator, RegressorMixin):
         gates=None,
         safeguard=False,
         separability=False,
+        noise_tolerant=False,
     ):
 
         self.enforce_dimensions = enforce_dimensions
@@ -133,6 +134,7 @@ class PIRRegressor(BaseEstimator, RegressorMixin):
         self.gates = gates
         self.safeguard = safeguard
         self.separability = separability
+        self.noise_tolerant = noise_tolerant
 
     def _gate_list(self):
         g = self.gates
@@ -239,12 +241,18 @@ class PIRRegressor(BaseEstimator, RegressorMixin):
             if late is not first:
                 self.gate_info_["separability_late"] = late
                 self.gate_info_["separability"] = first
+        if self.noise_tolerant:
+            # 3.10 (V): validated, noise-tolerant forms, only if nothing so far is exact
+            try:
+                self._run_noise_tolerant(X, y)
+            except Exception as e:  # must never break the result
+                self.gate_info_["noise_tolerant"] = {"error": f"{type(e).__name__}: {e}"}
         if self.safeguard:
             try:
                 self._run_safeguard(X, y)
             except Exception as e:  # the safeguard must never break the result
                 self.gate_info_["safeguard"] = {"error": f"{type(e).__name__}: {e}"}
-        if gates or self.safeguard or self.separability:
+        if gates or self.safeguard or self.separability or self.noise_tolerant:
             self.gate_info_["final_source"] = self.final_source_
         return self
 
@@ -275,6 +283,25 @@ class PIRRegressor(BaseEstimator, RegressorMixin):
             info["decision"] = "rejected_on_recheck"
             return
         self.expr_, self._fn, self.final_source_ = sp.sympify(txt, locals={str(s): s for s in self.symbols_}), fn, "separability"
+
+    # ---------------------------------------------------------- noise-tolerant
+    def _run_noise_tolerant(self, X, y):
+        from physics_engine.discovery.noise_tolerant.stage import run_noise_tolerant
+
+        Xv = np.asarray(X, dtype=float)
+        yv = np.asarray(y, dtype=float).ravel()
+        cur = self._eval(self._fn, Xv, len(yv))
+        txt, info = run_noise_tolerant(Xv, yv, self.feature_names_, cur, seed=0)
+        self.gate_info_["noise_tolerant"] = info
+        if txt is None:
+            return
+        expr = sp.sympify(txt, locals={str(s): s for s in self.symbols_})
+        fn = sp.lambdify(self.symbols_, expr, modules="numpy")
+        pred = self._eval(fn, Xv, len(yv))
+        if not np.all(np.isfinite(pred)):
+            info["decision"] = "rejected_nonfinite"
+            return
+        self.expr_, self._fn, self.final_source_ = expr, fn, "noise_tolerant"
 
     # -------------------------------------------------------------- safeguard
     def _run_safeguard(self, X, y):
