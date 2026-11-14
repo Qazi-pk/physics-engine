@@ -45,6 +45,16 @@ Since 3.9, a second (late) separability pass runs after the gates when nothing i
 yet, with extra extraction solvers (rules R5-R8 in stage.py); `gate_info_["separability_late"]`
 records it.
 
+Noise-tolerant stage (3.10, OFF by default): noise_tolerant=True; rules V1-V9 in
+physics_engine/discovery/noise_tolerant/stage.py.
+
+Composition and readable forms (3.11, OFF by default). With composition=True: (W2) a composition
+family y = C*M(A)*g(k*u) (physics_engine/discovery/noise_tolerant/vcomp.py) is tried exactly after
+the late separability pass when nothing is exact, and as a fourth family inside the noise-tolerant
+stage; (W1) an exact final model is rewritten, if possible, in an equivalent form that SRBench's
+scorer can verify without positivity assumptions (physics_engine/discovery/readable.py), checked
+numerically against the model on the training rows.
+
 Column names (3.7): a column whose name is not a valid Python identifier
 (e.g. "inv-nodes") gets a safe name ("inv_nodes") in the model string, so the
 formula can always be parsed back. Valid names are never changed.
@@ -113,6 +123,7 @@ class PIRRegressor(BaseEstimator, RegressorMixin):
         safeguard=False,
         separability=False,
         noise_tolerant=False,
+        composition=False,
     ):
 
         self.enforce_dimensions = enforce_dimensions
@@ -135,6 +146,7 @@ class PIRRegressor(BaseEstimator, RegressorMixin):
         self.safeguard = safeguard
         self.separability = separability
         self.noise_tolerant = noise_tolerant
+        self.composition = composition
 
     def _gate_list(self):
         g = self.gates
@@ -241,6 +253,12 @@ class PIRRegressor(BaseEstimator, RegressorMixin):
             if late is not first:
                 self.gate_info_["separability_late"] = late
                 self.gate_info_["separability"] = first
+        if self.composition:
+            # 3.11 (W2, exact use): composition forms, only if nothing so far is exact
+            try:
+                self._run_composition(X, y)
+            except Exception as e:  # must never break the result
+                self.gate_info_["composition"] = {"error": f"{type(e).__name__}: {e}"}
         if self.noise_tolerant:
             # 3.10 (V): validated, noise-tolerant forms, only if nothing so far is exact
             try:
@@ -252,7 +270,13 @@ class PIRRegressor(BaseEstimator, RegressorMixin):
                 self._run_safeguard(X, y)
             except Exception as e:  # the safeguard must never break the result
                 self.gate_info_["safeguard"] = {"error": f"{type(e).__name__}: {e}"}
-        if gates or self.safeguard or self.separability or self.noise_tolerant:
+        if self.composition:
+            # 3.11 (W1): a readable, verifiable form for an exact final model (same law, rewritten)
+            try:
+                self._run_readable(X, y)
+            except Exception as e:
+                self.gate_info_["readable"] = {"error": f"{type(e).__name__}: {e}"}
+        if gates or self.safeguard or self.separability or self.noise_tolerant or self.composition:
             self.gate_info_["final_source"] = self.final_source_
         return self
 
@@ -291,7 +315,7 @@ class PIRRegressor(BaseEstimator, RegressorMixin):
         Xv = np.asarray(X, dtype=float)
         yv = np.asarray(y, dtype=float).ravel()
         cur = self._eval(self._fn, Xv, len(yv))
-        txt, info = run_noise_tolerant(Xv, yv, self.feature_names_, cur, seed=0)
+        txt, info = run_noise_tolerant(Xv, yv, self.feature_names_, cur, seed=0, composition=self.composition)
         self.gate_info_["noise_tolerant"] = info
         if txt is None:
             return
@@ -302,6 +326,52 @@ class PIRRegressor(BaseEstimator, RegressorMixin):
             info["decision"] = "rejected_nonfinite"
             return
         self.expr_, self._fn, self.final_source_ = expr, fn, "noise_tolerant"
+
+    # ------------------------------------------------------- composition (3.11)
+    def _run_composition(self, X, y):
+        from physics_engine.discovery.noise_tolerant.vcomp import comp_exact, EXACT_TOL
+
+        Xv = np.asarray(X, dtype=float)
+        yv = np.asarray(y, dtype=float).ravel()
+        n = len(yv)
+        scale = float(max(np.max(np.abs(yv)), 1e-300))
+        cur_err = float(np.max(np.abs(self._eval(self._fn, Xv, n) - yv)) / scale)
+        if np.isfinite(cur_err) and cur_err < EXACT_TOL:
+            self.gate_info_["composition"] = {"decision": "current_exact"}
+            return
+        if n < 2000:   # same minimum-data rule as V9
+            self.gate_info_["composition"] = {"decision": "too_few_rows"}
+            return
+        res, info = comp_exact(Xv, yv, self.feature_names_, seed=0)
+        self.gate_info_["composition"] = info
+        if res is None:
+            return
+        expr, fn = self._parse(res["expr"])
+        err = float(np.max(np.abs(self._eval(fn, Xv, n) - yv)) / scale)
+        info["string_err_scaled"] = err
+        if np.isfinite(err) and err < EXACT_TOL and err < cur_err:
+            self._adopt(expr, fn, "composition")
+        else:
+            info["decision"] = "rejected_on_recheck"
+
+    def _run_readable(self, X, y):
+        from physics_engine.discovery.readable import readable_exact
+        from physics_engine.discovery.noise_tolerant.vcomp import EXACT_TOL
+
+        Xv = np.asarray(X, dtype=float)
+        yv = np.asarray(y, dtype=float).ravel()
+        n = len(yv)
+        scale = float(max(np.max(np.abs(yv)), 1e-300))
+        err = float(np.max(np.abs(self._eval(self._fn, Xv, n) - yv)) / scale)
+        if not (np.isfinite(err) and err < EXACT_TOL):
+            self.gate_info_["readable"] = {"decision": "not_exact"}
+            return
+        new = readable_exact(self.expr_, self.symbols_, Xv, yv)
+        if new is None:
+            self.gate_info_["readable"] = {"decision": "unchanged"}
+            return
+        self.gate_info_["readable"] = {"decision": "rewritten", "from": str(self.expr_), "to": str(new)}
+        self.expr_, self._fn = new, sp.lambdify(self.symbols_, new, modules="numpy")
 
     # -------------------------------------------------------------- safeguard
     def _run_safeguard(self, X, y):

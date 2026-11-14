@@ -41,11 +41,16 @@ V8  Output form. Equivalent forms that SRBench's scorer can verify without assum
     model before use: exact roots written as monomials; a dominant monomial pulled out of a
     two-term root; roots merged; one root for a single term and for half-integer power laws;
     common factors pulled out of sums; the exponent of exp factored.
+
+3.11 (feature W, plan claude/pir311_plan.md), with PIRRegressor(composition=True):
+W2  Composition family (vcomp.py): y = C * M(A) * g(k*u), u a pool monomial, g from a fixed
+    library (exp forms, trig, inverse trig, log, (1+t)**p). Used exactly before this stage (only
+    if nothing is exact) and, here, as a fourth family after rat with the same rules V4-V7.
 """
 import numpy as np
 import sympy as sp
 
-from . import vsep, vexp, vrat
+from . import vsep, vexp, vrat, vcomp
 
 MAX_ROWS = 20000
 MIN_TRAIN_ROWS = 2000   # V9
@@ -61,9 +66,13 @@ def _rows(n, seed):
     return keep, tr, va
 
 
-def run_noise_tolerant(X, y, names, current_pred, seed=0):
+COMP_MARGIN = 0.98   # W5
+
+
+def run_noise_tolerant(X, y, names, current_pred, seed=0, composition=False):
     """X: 2-D array (training rows), y: 1-D, names: column names (safe identifiers),
-    current_pred: the current model's predictions on X. Returns (expr_string or None, info)."""
+    current_pred: the current model's predictions on X. Returns (expr_string or None, info).
+    composition=True (3.11, W2) adds the composition family vcomp as a fourth family, tried last."""
     X = np.asarray(X, dtype=float)
     y = np.asarray(y, dtype=float).ravel()
     info = {"tried": {}}
@@ -82,7 +91,10 @@ def run_noise_tolerant(X, y, names, current_pred, seed=0):
         cur_mse = float("inf")
     info["current_val_mse"] = cur_mse
     best = None
-    for name, fn in (("sep", vsep.v_sep), ("exp", vexp.v_exp), ("rat", vrat.v_rat)):
+    families = [("sep", vsep.v_sep), ("exp", vexp.v_exp), ("rat", vrat.v_rat)]
+    if composition:
+        families.append(("comp", vcomp.v_comp))
+    for name, fn in families:
         try:
             res, sub = fn(X, y, names, seed=seed)
         except Exception as e:  # a family must never break the fit
@@ -99,6 +111,8 @@ def run_noise_tolerant(X, y, names, current_pred, seed=0):
                 ops = 10 ** 6
             # lowest held-out MSE wins; near-ties (relative 1e-6: the same law written two ways) go to
             # the shorter expression (fewest operations), then to the family tried first
+            if name == "comp" and best is not None and not v < best[1] * COMP_MARGIN:
+                continue    # W5: the composition family must beat an already accepted simpler form by 2%
             if best is None or v < best[1] * (1 - 1e-6) or (v <= best[1] * (1 + 1e-6) and ops < best[3]):
                 best = (name, v, res["expr"], ops)
     if best is None:
