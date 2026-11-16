@@ -91,6 +91,16 @@ def test_readable_merges_roots_and_perfect_squares():
     assert np.allclose(fn(*X.T), y / np.sqrt(1.86929359874611), rtol=1e-6)   # same law, constant folded
 
 
+def test_readable_keeps_half_power_with_sum_root():
+    """test_5 (noise 0): d**(3/2)/sqrt(G*(m1+m2)) must not be merged into one root (scorer then fails)."""
+    RNG = np.random.default_rng(0)
+    names = ["d", "G", "m1", "m2"]; S = [sp.Symbol(n) for n in names]
+    X = RNG.uniform(1, 5, (500, 4))
+    e = sp.sympify("396*d**(3/2)/(125*sqrt(G*(0.254220523744909*m1 + 0.25422052374491*m2)))", locals=dict(zip(names, S)))
+    y = sp.lambdify(S, e, "numpy")(*X.T)
+    assert readable_exact(e, S, X, y) is None
+
+
 def test_readable_leaves_clean_forms_alone():
     RNG = np.random.default_rng(0)
     names = ["a", "b"]; S = [sp.Symbol(x) for x in names]

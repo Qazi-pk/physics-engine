@@ -9,7 +9,7 @@ verify without assuming positive variables (SRBench issue #235), e.g.
 The 3.10 noise-tolerant stage already writes its own output in verifiable forms (rule V8) but, by
 rule V1, never touches an exact model. This module applies the same idea to any exact final model:
 
-  W1a  merge roots of a product            (powsimp/powdenest with force=True)
+  W1a  merge roots of a product            (only square roots of monomials: sqrt(x)*sqrt(y)/sqrt(z))
   W1b  a perfect square under a root       sqrt(c*(poly)**2) -> sqrt(c)*poly  (numeric coefficients
        are rationalised relative to the largest one, tolerance 1e-6, then factored)
   W1c  numeric constants folded            sqrt(1.869) -> 1.367...
@@ -31,13 +31,19 @@ def _fold(expr):
 
 
 def _merge_roots(expr):
-    """W1a: x**(1/2)*y**(3/2)/z**(1/2) -> sqrt(x*y**3/z) (one root per product; other factors kept)."""
+    """W1a: sqrt(x)*sqrt(y)/sqrt(z) -> sqrt(x*y/z).
+
+    Applied only to a product whose half-integer-power factors are ALL square roots (exponent +-1/2) of
+    monomials (no sum inside the root). Forms such as d**(3/2)/sqrt(G*(m1 + m2)) are already verifiable by the scorer and
+    are left alone (3.11 development finding: merging them lost test_5 at noise 0)."""
     def one(m):
         if not isinstance(m, sp.Mul):
             return m
         inner, rest = [], []
         for f in sp.Mul.make_args(m):
             if isinstance(f, sp.Pow) and f.exp.is_Rational and f.exp.q == 2:
+                if not (f.exp in (sp.Rational(1, 2), sp.Rational(-1, 2)) and not f.base.atoms(sp.Add)):
+                    return m
                 inner.append(f.base ** (f.exp * 2))
             else:
                 rest.append(f)
