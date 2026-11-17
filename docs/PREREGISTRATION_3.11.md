@@ -1,4 +1,4 @@
-# PIR 3.11 pre-registration (DRAFT: not yet public; binding once its commit is pushed to GitHub (branch v311-dev) before any 3.11 benchmark run; the pushed commit hash is the registration)
+# PIR 3.11 pre-registration (approved by the author on 17 Nov 2026; binding once its commit is pushed to GitHub (branch v311-dev) before any 3.11 benchmark run; the pushed commit hash is the registration)
 
 Method as for 3.6-3.10: rules fixed before the runs; development half = 60 laws and blind half = 59 laws, split by SHA-256 of the dataset name (odd = blind); the blind half is counted once and never studied; Strogatz-14 is never used for design (report only); fixed scorer (#231).
 
