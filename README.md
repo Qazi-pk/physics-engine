@@ -15,7 +15,7 @@ are tested; other subpackages are experimental (see *Status* below).
 ## Install
 
 ```bash
-pip install "git+https://github.com/Qazi-pk/physics-engine.git@v3.10.0"
+pip install "git+https://github.com/Qazi-pk/physics-engine.git@v3.11.0"
 ```
 
 Requires Python 3.9+ (CI tests 3.10 and 3.12). Dependencies: numpy, scipy,
@@ -121,6 +121,27 @@ assuming positive variables (SRBench issue #235): for example `k*x**2`, not
 `sqrt(k**2*x**4)`. Each rewritten form is checked numerically against the
 fitted model.
 
+## Composition family (new in 3.11)
+
+Opt-in, `PIRRegressor(composition=True)` (default `False`; with it off, output is identical
+to 3.10.0). It looks for laws of the form `C * M(A) * g(k * u)`: a monomial times one function
+`g` of a monomial `u`, with `g` from a fixed library: `exp(+-u)`, `1/(exp(u)-1)`,
+`1/(exp(u)+exp(-u))`, `sin(u)`, `sin(u)^2`, `cos(u)`, `arcsin(u)`, `arccos(u)`, `log(u)`,
+`1/(1+u)`, `tanh(u)`, `1/sqrt(1-u^2)`. Exponents of `u` are snapped to simple fractions.
+Rules fixed before benchmarking (W1-W5 in `physics_engine/discovery/noise_tolerant/vcomp.py`
+and `physics_engine/discovery/readable.py`):
+
+- **Exact data** (W2): tried only when no earlier stage found an exact law.
+- **Noisy data** (W3, W4): inside the noise-tolerant stage, with its validated acceptance
+  (validation error within 2% of the unsnapped fit and 5% of the best reference; R^2 at least 0.5).
+- **Replacement** (W5): a composition form replaces another accepted form only if its held-out
+  error is at least 2% lower.
+- **Minimum data** (V9): on noisy data it needs at least 2,000 training rows, like the
+  noise-tolerant stage.
+- **Readable forms** (W1): exact models are rewritten into simpler equivalent forms (merged
+  square roots of monomials, perfect squares under a root), checked numerically.
+- Tests: `tests/test_composition_v311.py`. Pre-registration: `docs/PREREGISTRATION_3.11.md`.
+
 ## Safeguard (new in 3.7)
 
 PIR looks for physical laws. On data without one, its best formula can fit
@@ -144,12 +165,12 @@ at noise 0, two seeds, scored with SRBench's own `assess_symbolic_model.py`
 
 Symbolic solutions out of 119 (seeds 23654 / 78901):
 
-| Target noise | 3.5 engine | 3.6.0 (`gates="all"`) | 3.7.0 (+ `safeguard=True`) | 3.8.0 (+ `separability=True`) | 3.9.0 | 3.10.0 (+ `noise_tolerant=True`) |
-|---|---|---|---|---|---|---|
-| 0 | 35 / 35 | 50 / 50 | 50 / 50 | 58 / 58 | 74 / 74 | **75 / 75** |
-| 0.001 | 35 / 35 | 36 / 36 | 36 / 36 | 36 / 36 | 36 / 36 | **73 / 74** |
-| 0.01 | 30 / 29 | 35 / 35 | 35 / 35 | 35 / 35 | 35 / 35 | **73 / 74** |
-| 0.1 | 2 / 2 | 23 / 22 | 23 / 22 | 23 / 22 | 23 / 22 | **55 / 55** |
+| Target noise | 3.5 engine | 3.6.0 (`gates="all"`) | 3.7.0 (+ `safeguard=True`) | 3.8.0 (+ `separability=True`) | 3.9.0 | 3.10.0 (+ `noise_tolerant=True`) | 3.11.0 (+ `composition=True`) |
+|---|---|---|---|---|---|---|---|
+| 0 | 35 / 35 | 50 / 50 | 50 / 50 | 58 / 58 | 74 / 74 | 75 / 75 | **84 / 85** |
+| 0.001 | 35 / 35 | 36 / 36 | 36 / 36 | 36 / 36 | 36 / 36 | 73 / 74 | **81 / 83** |
+| 0.01 | 30 / 29 | 35 / 35 | 35 / 35 | 35 / 35 | 35 / 35 | 73 / 74 | **79 / 83** |
+| 0.1 | 2 / 2 | 23 / 22 | 23 / 22 | 23 / 22 | 23 / 22 | 55 / 55 | **61 / 61** |
 
 No dataset solved by an earlier version is lost at any noise level. The 3.6.0
 to 3.10.0 columns were run with the packaged code inside SRBench's official
@@ -207,6 +228,19 @@ noise (lv1, lv2, shearflow2) and lost none. Strogatz counts use SRBench's
 original scorer.
 
 These are the author's own runs, not an official SRBench leaderboard result.
+
+3.11.0 adds the opt-in composition family (`composition=True`, see above). Its rules were
+pre-registered (engine commit 97b1593) and tested on the same split as 3.9 and 3.10: the
+development half (60 laws) and a blind half (59 laws) held back during development and run
+once. It lost no law that 3.10.0 solved in any of the 16 runs (2 halves x 4 noise levels x
+2 seeds) and gained 3 to 6 laws per development run and 2 to 5 per blind run. The 7 blind laws
+gained, listed after the result was final, are all new discoveries rather than rewritten forms:
+II.35.21 (magnetization, gained in all 8 blind runs), I.41.16 (Planck's radiation law, 6 of 8),
+III.4.33, II.11.27, III.15.12, I.27.6 and I.34.1. Two development gains (II.21.32, I.47.23) are
+clearer output forms of laws 3.10 already had. Most gains depend on noise level and seed. On the
+black-box datasets 3.11.0 is unchanged (no dataset worse by more than 0.01 R^2, median 0.436),
+and on Strogatz-14 (report only) it gives the same results as 3.10.0. With `composition=False`
+(the default) the output is identical to 3.10.0.
 
 ## Status
 
