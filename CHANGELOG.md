@@ -1,5 +1,41 @@
 # Changelog
 
+## 3.11.0 — 2026-11-27
+
+### Added
+- Optional **composition family** (`PIRRegressor(composition=False)` by default): laws of the form
+  y = C * M(A) * g(k * u), with M a monomial and g from a fixed library: exp(+-u), 1/(exp(u)-1),
+  1/(exp(u)+exp(-u)), sin(u), sin(u)^2, cos(u), arcsin(u), arccos(u), log(u), 1/(1+u), tanh(u),
+  1/sqrt(1-u^2); exponents of u snapped to simple fractions.
+  - Exact data (W2): tried only when no earlier stage is exact.
+  - Noisy data: inside the noise-tolerant stage with its validated acceptance (W3: validation MSE
+    <= 1.02 x unsnapped and <= 1.05 x best reference; W4: R^2 >= 0.5; W5: replaces another accepted
+    family only if held-out MSE < 0.98 x theirs; V9: at least 2,000 training rows).
+- **Readable output forms** for exact models (W1): merge square roots of monomials (W1a) and
+  perfect squares under a root (W1b); a rewrite must evaluate identically and use no more operations.
+
+### Unchanged
+- With `composition=False` (the default) output is identical to 3.10.0: 24 of 24 test fits identical
+  (12 development laws, noise 0 and 0.01); 54 unit tests pass.
+
+### Verification (pre-registered, engine commit 97b1593; own runs with SRBench's tools and fixed scorer #231)
+- Feynman development half (60 laws), noise 0 / 0.001 / 0.01 / 0.1, seeds 23654 and 78901:
+  0 laws lost in 8 of 8 runs; +3 to +6 per run.
+- Feynman blind half (59 laws, held back during development, run once): 0 lost in 8 of 8 runs;
+  +2 to +5 per run. Laws gained (listed after the result was final): II.35.21 (8 of 8 runs),
+  I.41.16 Planck's radiation law (6 of 8), III.4.33 (5), II.11.27 (4), III.15.12 (3), I.27.6 (2), I.34.1 (1).
+- All 119 Feynman laws at noise 0: 75 (3.10.0) -> 84 / 85 (3.11, composition on).
+- SRBench black-box (120 datasets): no dataset worse by more than 0.01 R^2; median R^2 unchanged (0.436).
+- Strogatz-14 (report only): unchanged (300 rows is below the 2,000-row minimum of the noisy stage).
+
+### Known limitations
+- Most gains depend on noise level and seed (2 seeds); only II.35.21 is gained in every run.
+  III.4.32 is not stable across noise levels.
+- Two development-half gains (II.21.32, I.47.23) are clearer output forms of laws 3.10 already had,
+  not new discoveries.
+- No change on small datasets (fewer than 2,000 rows) at noise > 0, and no gain on black-box data.
+- Results are self-run with SRBench's tools, not official leaderboard results.
+
 ## 3.10.0 — 2026-11-12
 
 New opt-in **noise-tolerant stage**, `PIRRegressor(noise_tolerant=True)`
